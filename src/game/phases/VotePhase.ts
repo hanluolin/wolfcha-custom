@@ -1,3 +1,4 @@
+import { recordVoteRound } from "@/lib/vote-rounds";
 import type { GameState, Player } from "@/types/game";
 import { GamePhase } from "../core/GamePhase";
 import type { GameAction, GameContext, PromptResult, SystemPromptPart } from "../core/types";
@@ -8,6 +9,7 @@ import {
   getRoleText,
   getWinCondition,
   buildSystemTextFromParts,
+  buildDecisionGrounding,
 } from "@/lib/prompt-utils";
 import { getI18n } from "@/i18n/translator";
 import {
@@ -25,6 +27,7 @@ import { getPlayerDiedKey } from "@/lib/narrator-voice";
 
 type VotePhaseRuntime = {
   token: FlowToken;
+  getGameState?: () => GameState;
   isRevote?: boolean;
   humanPlayer: Player | null;
   setGameState: (value: GameState | ((prev: GameState) => GameState)) => void;
@@ -48,7 +51,7 @@ export class VotePhase extends GamePhase {
     const speakerHost = t("speakers.host");
     const speakerHint = t("speakers.hint");
 
-    const { humanPlayer, setDialogue, setGameState, setIsWaitingForAI, waitForUnpause, isTokenValid, token } = runtime;
+    const { humanPlayer, setDialogue, setGameState, waitForUnpause, isTokenValid, token } = runtime;
     const isRevote = runtime.isRevote === true;
 
     let currentState = transitionPhase(context.state, "DAY_VOTE");
@@ -73,23 +76,36 @@ export class VotePhase extends GamePhase {
       setDialogue(speakerHint, uiText.clickToVote, false);
     }
 
+    if (!isTokenValid(token)) return;
+    await this.continueVoting(currentState, runtime);
+  }
+
+  private async continueVoting(currentState: GameState, runtime: VotePhaseRuntime): Promise<void> {
+    const { setGameState, setIsWaitingForAI, isTokenValid, token } = runtime;
+    // 恢复和新开轮次共用同一个循环；已有票（包括弃票）不能重投。
     // PK投票时，参与PK的人不能投票
     const pkTargets = currentState.pkSource === "vote" && Array.isArray(currentState.pkTargets) ? currentState.pkTargets : [];
     // 已翻牌白痴不参与投票（节省 AI 调用）
     const revealedIdiotId = currentState.roleAbilities.idiotRevealed
       ? currentState.players.find((p) => p.role === "Idiot" && p.alive)?.playerId
       : undefined;
-    const aiPlayers = currentState.players.filter((p) => p.alive && !p.isHuman && !pkTargets.includes(p.seat) && p.playerId !== revealedIdiotId);
+    const aiPlayers = currentState.players.filter((p) => p.alive && !p.isHuman && !pkTargets.includes(p.seat) && p.playerId !== revealedIdiotId && typeof currentState.votes[p.playerId] !== "number");
+    const roundIdentity = `${currentState.gameId}:${currentState.day}:${currentState.pkSource}:${(currentState.voteRounds ?? []).length}`;
+    const stillCurrent = () => {
+      const latest = runtime.getGameState?.() ?? currentState;
+      return isTokenValid(token) && latest.phase === "DAY_VOTE" &&
+        `${latest.gameId}:${latest.day}:${latest.pkSource}:${(latest.voteRounds ?? []).length}` === roundIdentity;
+    };
     let tokenInvalidated = false;
     setIsWaitingForAI(true);
     try {
       for (const aiPlayer of aiPlayers) {
-        if (!isTokenValid(token)) {
+        if (!stillCurrent()) {
           tokenInvalidated = true;
           break;
         }
         const vote = await generateAIVote(currentState, aiPlayer);
-        if (!isTokenValid(token)) {
+        if (!stillCurrent()) {
           tokenInvalidated = true;
           break;
         }
@@ -106,11 +122,12 @@ export class VotePhase extends GamePhase {
         };
       }
     } finally {
-      setIsWaitingForAI(false);
+      if (stillCurrent()) setIsWaitingForAI(false);
     }
     if (tokenInvalidated) return;
-
-    if (!humanPlayer?.alive || isRevealedIdiot) {
+    currentState = runtime.getGameState?.() ?? currentState;
+    const voters = currentState.players.filter((p) => p.alive && !pkTargets.includes(p.seat) && p.playerId !== revealedIdiotId);
+    if (voters.every((p) => typeof currentState.votes[p.playerId] === "number")) {
       await this.resolveVotes(currentState, runtime);
     }
   }
@@ -157,16 +174,21 @@ export class VotePhase extends GamePhase {
       todayTranscript: todayTranscript || t("prompts.vote.userNoTranscript"),
       selfSpeech: selfSpeechContext || t("prompts.vote.userNoSelfSpeech"),
       voteJsonFormat: JSON.stringify({ seat: exampleSeat }),
-    });
+    }) + `\n\n${buildDecisionGrounding(state, player)}\n<my_public_position>\n${selfSpeech || "本日没有本人公开发言"}\n</my_public_position>\n投票前核对自己最后明确支持或排除的目标。改变立场必须依据在那句话之后真正出现的新发言或新事件，并在 reason 中说明；没有新证据就延续自己的公开结论，不要编造尚未发生的回应。只输出 {"seat":座位号,"reason":"本次投票依据"}。`;
 
     return { system, user, systemParts };
   }
 
   async handleAction(_context: GameContext, _action: GameAction): Promise<void> {
-    if (_action.type !== "RESOLVE_VOTES") return;
     const runtime = this.getRuntime(_context);
     if (!runtime) return;
-    await this.resolveVotes(_context.state, runtime);
+    if (_action.type === "RESUME_VOTES") {
+      const { t } = getI18n();
+      runtime.setDialogue(t("speakers.hint"), getUiText().clickToVote, false);
+      await this.continueVoting(_context.state, runtime);
+    } else if (_action.type === "RESOLVE_VOTES") {
+      await this.resolveVotes(_context.state, runtime);
+    }
   }
 
   async onExit(): Promise<void> {
@@ -279,13 +301,21 @@ export class VotePhase extends GamePhase {
 
     const result = tallyVotes(currentState);
 
+    const immunity = !!result && currentState.players.some((p) => p.seat === result.seat && p.role === "Idiot") &&
+      !currentState.roleAbilities.idiotRevealed;
+    currentState = recordVoteRound(currentState, {
+      kind: "execution", round: state.pkSource === "vote" ? 2 : 1,
+      candidates: state.pkSource === "vote" && state.pkTargets?.length ? state.pkTargets : state.players.filter((p) => p.alive).map((p) => p.seat),
+      votes: currentVotes, sheriffSeat: state.badge.holderSeat, winnerSeat: result?.seat ?? null,
+      outcome: result ? immunity ? "idiot-revealed" : "executed" : Object.keys(this.getVoteCounts(currentState)).length ? "tie" : "no-votes",
+    });
     const prevDayRecord = (currentState.dayHistory || {})[currentState.day] || {};
     if (result) {
       currentState = {
         ...currentState,
         dayHistory: {
           ...(currentState.dayHistory || {}),
-          [currentState.day]: { ...prevDayRecord, executed: { seat: result.seat, votes: result.count }, voteTie: false },
+          [currentState.day]: { ...prevDayRecord, executed: immunity ? undefined : { seat: result.seat, votes: result.count }, voteTie: false },
         },
       };
     } else {
@@ -321,7 +351,7 @@ export class VotePhase extends GamePhase {
           roleAbilities: { ...currentState.roleAbilities, idiotRevealed: true },
           dayHistory: {
             ...(currentState.dayHistory || {}),
-            [currentState.day]: { ...prevDayRec, idiotRevealed: { seat: result.seat } },
+            [currentState.day]: { ...prevDayRec, executed: undefined, voteTie: false, idiotRevealed: { seat: result.seat } },
           },
           pkTargets: undefined,
           pkSource: undefined,
