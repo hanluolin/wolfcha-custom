@@ -22,7 +22,7 @@ import { useTranslations } from "next-intl";
 
 import { ALL_MODELS, PLAYER_MODELS, PROJECT_MODELS, isWolfRole, type GameState, type Player, type Phase, type Role, type DevPreset, type ModelRef, type StartGameOptions } from "@/types/game";
 import { gameStateAtom, isValidTransition, clearPersistedGameState, isRestorableGameState } from "@/store/game-machine";
-import { getGeneratorModel, getModelSource } from "@/lib/api-keys";
+import { getGeneratorModel } from "@/lib/api-keys";
 import {
   createInitialGameState,
   setupPlayers,
@@ -48,7 +48,6 @@ import {
 } from "@/lib/game-flow-controller";
 import { playNarrator } from "@/lib/narrator-audio-player";
 import { PhaseManager } from "@/game/core/PhaseManager";
-import { supabase } from "@/lib/supabase";
 import { gameStatsTracker } from "@/hooks/useGameStats";
 import { gameSessionTracker } from "@/lib/game-session-tracker";
 import { continueAfterHunterShotWithBadgeTransfer } from "@/lib/hunter-badge-flow";
@@ -99,6 +98,34 @@ export function useGameLogic() {
   const [inputText, setInputText] = useState("");
   const [showTable, setShowTable] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
+
+  // 角色批量生成失败 → 挂起等待用户在 UI 上确认是否重试该批
+  const [characterRetry, setCharacterRetry] = useState<{
+    message: string;
+    batchStartIndex: number;
+    attempt: number;
+  } | null>(null);
+  const characterRetryResolveRef = useRef<((ok: boolean) => void) | null>(null);
+
+  const requestCharacterBatchRetry = useCallback(
+    async (info: { batchStartIndex: number; attempt: number; reason: string }) =>
+      new Promise<boolean>((resolve) => {
+        characterRetryResolveRef.current = resolve;
+        setCharacterRetry({
+          message: info.reason || `batch ${info.batchStartIndex}`,
+          batchStartIndex: info.batchStartIndex,
+          attempt: info.attempt,
+        });
+      }),
+    [],
+  );
+
+  const confirmCharacterBatchRetry = useCallback((ok: boolean) => {
+    const resolve = characterRetryResolveRef.current;
+    characterRetryResolveRef.current = null;
+    setCharacterRetry(null);
+    resolve?.(ok);
+  }, []);
   
   // Track if we've already restored the game state on mount
   const hasRestoredRef = useRef(false);
@@ -496,57 +523,11 @@ export function useGameLogic() {
   // ============================================
   // 特殊事件处理
   // ============================================
-  // 缓存 access token 用于游戏会话保存
-  const accessTokenRef = useRef<string | null>(null);
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      accessTokenRef.current = session?.access_token ?? null;
-    });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
-      accessTokenRef.current = session?.access_token ?? null;
-    });
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const getAccessToken = useCallback((): string | null => {
-    return accessTokenRef.current;
-  }, []);
-
-  // 监听页面卸载，记录中断的游戏会话
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      const summary = gameSessionTracker.getSummary();
-      const accessToken = accessTokenRef.current;
-      if (!summary || !accessToken) return;
-
-      // 使用 sendBeacon 确保页面关闭时请求能发出
-      // 由于 sendBeacon 无法等待异步操作，仍使用 API 路由
-      const payload = JSON.stringify({
-        action: "update",
-        sessionId: summary.sessionId,
-        accessToken,
-        winner: null,
-        completed: false,
-        lifecycleStatus: "running",
-        roundsPlayed: summary.roundsPlayed,
-        durationSeconds: summary.durationSeconds,
-      });
-      navigator.sendBeacon?.(
-        "/api/game-sessions",
-        new Blob([payload], { type: "application/json" })
-      );
-    };
-
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, []);
-
   const specialEvents = useSpecialEvents({
     setDialogue,
     setIsWaitingForAI,
     waitForUnpause,
     isTokenValid,
-    getAccessToken,
     prepareFinalState: (state) => maybeGenerateDailySummary(state, { force: true }),
   });
 
@@ -1419,15 +1400,14 @@ export function useGameLogic() {
       const statsConfig = {
         playerCount,
         difficulty,
-        usedCustomKey: getModelSource() !== "project",
+        usedCustomKey: true,
       };
       gameStatsTracker.start(statsConfig);
 
       sessionId = await gameSessionTracker.start({
         playerCount,
         difficulty,
-        usedCustomKey: getModelSource() !== "project",
-        modelUsed: getGeneratorModel(),
+        usedCustomKey: true,
         sessionId: gameSessionId,
       }).catch((err) => {
         console.error("[game-session] Failed to create:", err);
@@ -1645,6 +1625,7 @@ export function useGameLogic() {
               });
             }, 120);
           },
+          onBatchRetry: async (info) => requestCharacterBatchRetry(info),
         });
       }
 
@@ -1773,7 +1754,7 @@ export function useGameLogic() {
     } finally {
       setIsLoading(false);
     }
-  }, [clearCancellableTimeouts, getToken, humanName, isTokenValid, resetDialogueState, runNightPhaseAction, scheduleCancellableTimeout, setDialogue, setGameStarted, setGameState, setInputText, setIsLoading, setShowTable, speakerHost, t]);
+  }, [clearCancellableTimeouts, getToken, humanName, isTokenValid, resetDialogueState, requestCharacterBatchRetry, runNightPhaseAction, scheduleCancellableTimeout, setDialogue, setGameStarted, setGameState, setInputText, setIsLoading, setShowTable, speakerHost, t]);
 
   /** 角色揭示后继续 */
   const continueAfterRoleReveal = useCallback(async () => {
@@ -2334,6 +2315,8 @@ export function useGameLogic() {
     logRef,
     humanPlayer,
     isNight,
+    characterRetry,
+    confirmCharacterBatchRetry,
 
     // Actions
     startGame,

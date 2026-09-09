@@ -239,36 +239,17 @@ const createTransport = () => {
 
   const fetchImpl: typeof fetch = async (input, init) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
-    if (url === "/api/demo-config") {
-      return Response.json({ enabled: false, active: false });
-    }
-    if (url !== "/api/chat") {
+    if (!url.endsWith("/chat/completions")) {
       externalNetworkCallCount += 1;
       throw new Error(`上下文审计禁止外部网络请求: ${url}`);
     }
 
     const body = JSON.parse(String(init?.body ?? "{}")) as {
       model?: string;
+      stream?: boolean;
       messages?: LLMMessage[];
-      requests?: Array<{ model: string; messages: LLMMessage[] }>;
     };
     requestId += 1;
-
-    if (Array.isArray(body.requests)) {
-      const results = body.requests.map((request, batchIndex) => {
-        const responseContent = nextContents[batchIndex] ?? "0";
-        records.push({
-          requestId,
-          batchIndex,
-          model: request.model,
-          messages: request.messages,
-          responseContent,
-        });
-        return { ok: true, data: makeChatResponse(responseContent, requestId * 100 + batchIndex) };
-      });
-      nextContents = [];
-      return Response.json({ results });
-    }
 
     const responseContent = nextContents.shift() ?? "[\"审计发言\"]";
     records.push({
@@ -280,7 +261,7 @@ const createTransport = () => {
     });
     nextContents = [];
 
-    const wantsStream = Boolean((body as { stream?: boolean }).stream);
+    const wantsStream = Boolean(body.stream);
     if (wantsStream) {
       const encoder = new TextEncoder();
       const stream = new ReadableStream({
@@ -336,6 +317,36 @@ export async function runSinglePlayerContextAudit(
 
   const originalFetch = globalThis.fetch;
   const originalConsoleLog = console.log;
+  const originalWindow = globalThis.window;
+  const originalLocalStorage = globalThis.localStorage;
+  const storage = new Map<string, string>();
+  const mockStorage: Storage = {
+    get length() { return storage.size; },
+    clear: () => storage.clear(),
+    getItem: (key) => storage.get(key) ?? null,
+    key: (index) => Array.from(storage.keys())[index] ?? null,
+    removeItem: (key) => { storage.delete(key); },
+    setItem: (key, value) => { storage.set(key, String(value)); },
+  };
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: {
+      localStorage: mockStorage,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      dispatchEvent: () => true,
+    },
+  });
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: mockStorage,
+  });
+  const apiKeys = await import("@/lib/api-keys");
+  apiKeys.setOpenAIBaseUrl("http://audit.local/v1");
+  apiKeys.setOpenAIApiKey("audit-local-key");
+  apiKeys.setOpenAIModel(AUDIT_MODEL);
+  apiKeys.setOpenAIJsonObjectEnabled(true);
+
   const transport = createTransport();
   globalThis.fetch = transport.fetchImpl;
   console.log = (...args: unknown[]) => {
@@ -555,6 +566,13 @@ export async function runSinglePlayerContextAudit(
     unsubscribe();
     globalThis.fetch = originalFetch;
     console.log = originalConsoleLog;
+    if (originalWindow === undefined) Reflect.deleteProperty(globalThis, "window");
+    else Object.defineProperty(globalThis, "window", { configurable: true, value: originalWindow });
+    if (originalLocalStorage === undefined) Reflect.deleteProperty(globalThis, "localStorage");
+    else Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: originalLocalStorage,
+    });
   }
 
   const checks: AuditCheck[] = [];

@@ -24,7 +24,6 @@ export interface SpecialEventsCallbacks {
   setIsWaitingForAI: (waiting: boolean) => void;
   waitForUnpause: () => Promise<void>;
   isTokenValid: (token: FlowToken) => boolean;
-  getAccessToken: () => string | null;
   prepareFinalState?: (state: GameState) => Promise<GameState>;
 }
 
@@ -53,7 +52,7 @@ export function useSpecialEvents(
   };
   const [, setGameState] = useAtom(gameStateAtom);
 
-  const { setDialogue, setIsWaitingForAI, waitForUnpause, isTokenValid, getAccessToken, prepareFinalState } = callbacks;
+  const { setDialogue, setIsWaitingForAI, waitForUnpause, isTokenValid, prepareFinalState } = callbacks;
 
   /** 游戏结束 */
   const endGame = useCallback(async (state: GameState, winner: Alignment) => {

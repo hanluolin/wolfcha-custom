@@ -11,7 +11,6 @@ import { VotingProgress } from "./VotingProgress";
 import { WolfPlanningPanel } from "./WolfPlanningPanel";
 import { MentionInput } from "./MentionInput";
 import { TalkingAvatar } from "./TalkingAvatar";
-import { VoiceRecorder, type VoiceRecorderHandle } from "./VoiceRecorder";
 import { EventLog } from "./EventLog";
 import { buildSimpleAvatarUrl, getModelLogoUrl } from "@/lib/avatar-config";
 import { RoleRevealHistoryCard, type RoleRevealEntry } from "@/components/game/RoleRevealHistoryCard";
@@ -405,7 +404,6 @@ export function DialogArea({
   const historyRef = useRef<HTMLDivElement>(null);
   const historyContentRef = useRef<HTMLDivElement>(null);
   const lastPortraitPlayerRef = useRef<Player | null>(null);
-  const voiceRecorderRef = useRef<VoiceRecorderHandle | null>(null);
 
   const [talkingPlayerId, setTalkingPlayerId] = useState<string | null>(null);
 
@@ -1576,15 +1574,6 @@ export function DialogArea({
                       onChange={(t) => onInputChange?.(t)}
                       onSend={() => onSendMessage?.()}
                       onFinishSpeaking={onFinishSpeaking}
-                      onVoiceHoldPrepare={() => {
-                        voiceRecorderRef.current?.prepare();
-                      }}
-                      onVoiceHoldStart={() => {
-                        voiceRecorderRef.current?.start();
-                      }}
-                      onVoiceHoldEnd={() => {
-                        voiceRecorderRef.current?.stop();
-                      }}
                       placeholder={gameState.phase === "DAY_LAST_WORDS" ? t("dialog.input.lastWordsPlaceholder") : t("dialog.input.defaultPlaceholder")}
                       isNight={isNight}
                       isGenshinMode={isGenshinMode}
@@ -1593,17 +1582,6 @@ export function DialogArea({
                     
                     {/* 底部按钮栏 - 在输入框内部右下角 */}
                     <div className="absolute bottom-3 right-3 flex items-center gap-2">
-                      <VoiceRecorder
-                        ref={voiceRecorderRef}
-                        disabled={!isHumanTurn}
-                        isNight={isNight}
-                        onTranscript={(text) => {
-                          const prev = String(inputText || "");
-                          const next = prev.trim().length > 0 ? `${prev.trim()} ${text}` : text;
-                          onInputChange?.(next);
-                        }}
-                      />
-
                       <button
                         onClick={onSendMessage}
                         disabled={!inputText?.trim()}

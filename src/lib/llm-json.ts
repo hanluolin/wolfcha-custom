@@ -36,27 +36,105 @@ function sanitizeLLMJsonText(raw: string): string {
 }
 
 function extractFirstJsonCandidate(text: string): string | null {
-  const objectStart = text.indexOf("{");
-  const arrayStart = text.indexOf("[");
-  const start =
-    objectStart === -1 ? arrayStart : arrayStart === -1 ? objectStart : Math.min(objectStart, arrayStart);
-  if (start === -1) return null;
+  return extractJsonCandidates(text)[0] ?? null;
+}
 
-  const opening = text[start];
-  const closing = opening === "{" ? "}" : "]";
-  const end = text.lastIndexOf(closing);
-  if (end <= start) return null;
-  return text.slice(start, end + 1).trim();
+/** 提取字符串中所有顶层 JSON 候选（思考过程可能输出多个对象/数组）。 */
+function extractJsonCandidates(text: string): string[] {
+  const results: string[] = [];
+  let cursor = 0;
+  while (cursor < text.length) {
+    const objectStart = text.indexOf("{", cursor);
+    const arrayStart = text.indexOf("[", cursor);
+    const start =
+      objectStart === -1 ? arrayStart : arrayStart === -1 ? objectStart : Math.min(objectStart, arrayStart);
+    if (start === -1) break;
+
+    const opening = text[start];
+    const expectedClosing = opening === "{" ? "}" : "]";
+    let depth = 0;
+    let inString = false;
+    let escaping = false;
+    let end = -1;
+    for (let i = start; i < text.length; i += 1) {
+      const ch = text[i];
+      if (inString) {
+        if (escaping) {
+          escaping = false;
+          continue;
+        }
+        if (ch === "\\") {
+          escaping = true;
+          continue;
+        }
+        if (ch === '"') inString = false;
+        continue;
+      }
+      if (ch === '"') {
+        inString = true;
+        continue;
+      }
+      if (ch === opening) {
+        depth += 1;
+        continue;
+      }
+      if (ch === expectedClosing) {
+        depth -= 1;
+        if (depth === 0) {
+          end = i + 1;
+          break;
+        }
+        continue;
+      }
+      if (opening === "{" && ch === "[") depth += 1;
+      if (opening === "{" && ch === "]") {
+        depth = Math.max(0, depth - 1);
+        if (depth === 0) {
+          end = i + 1;
+          break;
+        }
+      }
+      if (opening === "[" && ch === "{") depth += 1;
+      if (opening === "[" && ch === "}") {
+        depth = Math.max(0, depth - 1);
+        if (depth === 0) {
+          end = i + 1;
+          break;
+        }
+      }
+    }
+    if (end === -1) break;
+    results.push(text.slice(start, end).trim());
+    cursor = end;
+  }
+  return results;
 }
 
 function normalizeLooseJson(text: string): string {
   return text.replace(/,\s*([}\]])/g, "$1").trim();
 }
 
+/** 修复对象键开头引号丢失的残缺输出,如 ,age":29 → ,"age":29 */
+function fixMissingKeyQuotes(text: string): string {
+  return text.replace(
+    /([{,]\s*)([A-Za-z_$][A-Za-z0-9_$-]*)(?="\s*:)/g,
+    '$1"$2"',
+  );
+}
+
 export function parseLLMJson<T>(raw: string): T | null {
   const cleaned = sanitizeLLMJsonText(raw);
   const extracted = extractFirstJsonCandidate(cleaned);
-  const candidates = Array.from(new Set([cleaned, extracted].filter((v): v is string => !!v)));
+  const candidates = Array.from(
+    new Set(
+      [
+        cleaned,
+        fixMissingKeyQuotes(cleaned),
+        extracted,
+        extracted ? fixMissingKeyQuotes(extracted) : null,
+      ].filter((v): v is string => !!v),
+    ),
+  );
 
   for (const candidate of candidates) {
     const variants = Array.from(new Set([candidate, normalizeLooseJson(candidate)]));
@@ -83,4 +161,24 @@ export function parseLLMJson<T>(raw: string): T | null {
   }
 
   return null;
+}
+
+/**
+ * 在思考/前后缀文本包含多个 JSON 片段时，优先返回顶层包含指定键
+ * （如 profiles / characters）的结构化输出。
+ */
+export function parseLLMJsonPreferKey<T>(raw: string, key: string): T | null {
+  if (!raw || !key) return parseLLMJson<T>(raw);
+  const cleaned = stripReasoningArtifacts(stripMarkdownCodeFences(String(raw ?? ""))).trim();
+  for (const candidate of extractJsonCandidates(cleaned)) {
+    const parsed = parseLLMJson<T>(candidate);
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      key in (parsed as Record<string, unknown>)
+    ) {
+      return parsed;
+    }
+  }
+  return parseLLMJson<T>(raw);
 }

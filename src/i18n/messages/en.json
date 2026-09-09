@@ -207,6 +207,13 @@
   "settings": {
     "title": "Settings",
     "description": "Adjust preferences and export logs",
+    "connection": {
+      "title": "Model & Voice Connection",
+      "description": "Configure the LLM gateway and optional voice",
+      "cardTitle": "Model / Voice Connection",
+      "cardDescription": "LLM gateway and MiniMax voice config are stored on this device",
+      "open": "Open"
+    },
     "about": {
       "title": "About",
       "description": "Learn about Wolfcha",
@@ -2047,6 +2054,12 @@
     "zenmux401": "ZenMux 401 Unauthorized",
     "requestFailed": "Request failed",
     "errorOccurred": "Error occurred: {error}",
+    "characterRetry": {
+      "title": "Character generation issue",
+      "description": "Some characters in batch {batch} failed to generate (attempt {attempt}). Retry this batch?",
+      "retry": "Retry batch",
+      "cancel": "Abort start"
+    },
     "guardNoRepeat": "Guard cannot protect the same player twice in a row",
     "youProtected": "You protected Seat {seat} {name}",
     "youVotedAttack": "You voted to attack Seat {seat} {name}, waiting for teammates...",
@@ -2071,6 +2084,41 @@
   "customKey": {
     "title": "Use my own key",
     "description": "Enable to enter your API Key. Stored locally in browser only.",
+    "openai": {
+      "title": "OpenAI-compatible gateway",
+      "description": "Point the game at your own LLM gateway (any OpenAI-compatible API URL). Once enabled, character generation, player speech, nightly summaries and the post-game review all use this single model - no other providers or sign-in needed.",
+      "enabled": "Active",
+      "baseUrl": "API base URL",
+      "baseUrlPlaceholder": "https://api.example.com/v1",
+      "apiKey": "API Key",
+      "apiKeyPlaceholder": "sk-...",
+      "model": "Model name",
+      "modelPlaceholder": "e.g. deepseek-v3.2 / glm-4.7",
+      "thinking": "Enable thinking",
+      "thinkingDesc": "Turn off for lower latency/cost; when on, reasoning_effort is sent at the depth below",
+      "effort": "Thinking depth",
+      "effortMinimal": "minimal",
+      "effortLow": "low",
+      "effortMedium": "medium",
+      "effortHigh": "high",
+      "effortMax": "max",
+      "effortHint": "Thinking depth only applies to models/gateways that support reasoning_effort.",
+      "style": "Thinking parameter format",
+      "styleAuto": "Auto (prefer thinking object)",
+      "styleThinking": "thinking object (Kimi/GLM/Volcano, etc.)",
+      "styleReasoning": "reasoning_effort (OpenAI standard)",
+      "styleDesc": "thinking is sent by default; switch to reasoning_effort only for OpenAI-standard gateways.",
+      "jsonObject": "Enable json_object output",
+      "jsonObjectDesc": "Tells the model to emit a JSON object, which keeps results stable. Turn this off if your model/gateway rejects the parameter.",
+      "proxy": "Route via this server proxy",
+      "proxyDesc": "Browser-direct is the default (pure frontend, no backend). Turn this on only when running the local server and your gateway does not allow browser CORS.",
+      "howToEnable": "Fill in all three fields and hit Save below to activate. Other providers and model pickers above are ignored while this is on.",
+      "activeNote": "This gateway is active and all AI uses this model. Edit and save to update; use Clear to switch back to built-in providers.",
+      "showKey": "Show API Key",
+      "hideKey": "Hide API Key",
+      "entryAction": "Configure LLM gateway",
+      "connected": "LLM: {model}"
+    },
     "dailyBonus": "Promo is currently unavailable.",
     "springCampaign": {
       "active": "Promo is currently unavailable.",

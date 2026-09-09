@@ -552,6 +552,12 @@ export async function generateCharacters(
   options?: {
     onBaseProfiles?: (profiles: BaseProfile[]) => void;
     onCharacter?: (index: number, character: GeneratedCharacter) => void;
+    /** 某批失败且未能在批内自愈时回调;返回 true 则重试失败批次,false 则放弃并抛出原错误。 */
+    onBatchRetry?: (info: {
+      batchStartIndex: number;
+      attempt: number;
+      reason: string;
+    }) => Promise<boolean>;
   }
 ): Promise<GeneratedCharacter[]> {
   const usedScenario = scenario ?? getRandomScenario();
@@ -562,6 +568,7 @@ export async function generateCharacters(
     temperature: GAME_TEMPERATURE.CHARACTER_GENERATION,
     max_tokens: Math.max(2400, count * 350 + 600),
     reasoning: CHARACTER_GENERATOR_REASONING,
+    preferRootKeys: ["profiles"],
     response_format: buildBaseProfilesResponseFormat(count),
   });
   const baseProfiles = normalizeBaseProfiles(baseResult).profiles;
@@ -651,39 +658,88 @@ export async function generateCharacters(
         }
       }
 
-      if (batchCharacters.filter(Boolean).length < batchProfiles.length) {
-        const fullResult = parseLLMJson<unknown>(stripMarkdownCodeFences(accumulatedContent));
-        if (!fullResult) {
-          throw new Error(`Character batch ${batchStartIndex} returned invalid JSON`);
-        }
-        const normalized = normalizeGeneratedCharacters(fullResult);
-        const aligned = alignCharactersToProfiles(normalized.characters, batchProfiles);
-        if (!aligned) {
-          throw new Error(`Character batch ${batchStartIndex} returned invalid schema`);
-        }
-
-        aligned.forEach((character, localIndex) => {
-          if (batchCharacters[localIndex]) return;
+      // 批量残缺时,对缺失角色逐个单发补生成,避免因一个角色格式残缺而整局重开。
+      const completeMissingByIndividual = async (missingLocalIndexes: number[]) => {
+        for (const localIndex of missingLocalIndexes) {
           const profile = batchProfiles[localIndex];
+          const singlePrompt = buildFullPersonasPrompt(usedScenario, baseProfiles, [profile]);
+          const singleResult = await generateJSON<unknown>({
+            model: batchModel,
+            messages: [{ role: "user", content: singlePrompt }],
+            temperature: GAME_TEMPERATURE.CHARACTER_PERSONA,
+            max_tokens: CHARACTER_PERSONA_BATCH_MAX_TOKENS,
+            reasoning: CHARACTER_GENERATOR_REASONING,
+            preferRootKeys: ["characters"],
+            response_format: buildPersonaBatchResponseFormat([profile]),
+          });
+          const singleNormalized = normalizeGeneratedCharacters(singleResult);
+          const singleAligned = alignCharactersToProfiles(singleNormalized.characters, [profile]);
+          const singleCharacter = singleAligned?.[0];
+          if (!singleCharacter) {
+            throw new Error(`Character ${profile.displayName} individual retry failed`);
+          }
           const voiceId = resolveVoiceId(
-            character.persona.voiceId,
-            character.persona.gender,
-            character.persona.age,
+            singleCharacter.persona.voiceId,
+            singleCharacter.persona.gender,
+            singleCharacter.persona.age,
             "zh" as AppLocale,
           );
-          const completed: GeneratedCharacter = {
+          batchCharacters[localIndex] = {
             displayName: profile.displayName,
             persona: {
-              ...character.persona,
+              ...singleCharacter.persona,
               basicInfo: profile.basicInfo,
               voiceId,
               relationships: undefined,
             },
-            playerMind: character.playerMind,
+            playerMind: singleCharacter.playerMind,
           };
-          batchCharacters[localIndex] = completed;
-          emitCharacter(batchStartIndex + localIndex, completed);
-        });
+          emitCharacter(batchStartIndex + localIndex, batchCharacters[localIndex]);
+        }
+      };
+
+      if (batchCharacters.filter(Boolean).length < batchProfiles.length) {
+        // 1) 优先整段解析补全
+        const fullResult = parseLLMJson<unknown>(stripMarkdownCodeFences(accumulatedContent));
+        if (fullResult) {
+          try {
+            const normalized = normalizeGeneratedCharacters(fullResult);
+            const aligned = alignCharactersToProfiles(normalized.characters, batchProfiles);
+            if (aligned) {
+              aligned.forEach((character, localIndex) => {
+                if (batchCharacters[localIndex]) return;
+                const profile = batchProfiles[localIndex];
+                const voiceId = resolveVoiceId(
+                  character.persona.voiceId,
+                  character.persona.gender,
+                  character.persona.age,
+                  "zh" as AppLocale,
+                );
+                batchCharacters[localIndex] = {
+                  displayName: profile.displayName,
+                  persona: {
+                    ...character.persona,
+                    basicInfo: profile.basicInfo,
+                    voiceId,
+                    relationships: undefined,
+                  },
+                  playerMind: character.playerMind,
+                };
+                emitCharacter(batchStartIndex + localIndex, batchCharacters[localIndex]);
+              });
+            }
+          } catch {
+            // 整段解析/对齐失败时忽略,交单人兜底
+          }
+        }
+
+        // 2) 仍缺失的角色逐个单发补生成
+        const stillMissing = batchProfiles
+          .map((_, localIndex) => localIndex)
+          .filter((localIndex) => !batchCharacters[localIndex]);
+        if (stillMissing.length > 0) {
+          await completeMissingByIndividual(stillMissing);
+        }
       }
 
       await aiLogger.log({
@@ -731,20 +787,46 @@ export async function generateCharacters(
     }
   };
 
-  const batchTasks: Promise<GeneratedCharacter[]>[] = [];
+  const batchTasks: { start: number; profiles: BaseProfile[] }[] = [];
   for (let start = 0; start < baseProfiles.length; start += CHARACTER_PERSONA_BATCH_SIZE) {
-    batchTasks.push(
-      generatePersonaBatch(
-        baseProfiles.slice(start, start + CHARACTER_PERSONA_BATCH_SIZE),
-        start,
-      ),
-    );
+    batchTasks.push({
+      start,
+      profiles: baseProfiles.slice(start, start + CHARACTER_PERSONA_BATCH_SIZE),
+    });
   }
-  const batchResults = await Promise.allSettled(batchTasks);
-  const failedBatch = batchResults.find(
-    (result): result is PromiseRejectedResult => result.status === "rejected",
-  );
-  if (failedBatch) throw failedBatch.reason;
+
+  // 逐轮并发跑批次;失败的批次通过 onBatchRetry 征询用户后原地重试,
+  // 避免任一角色生成残缺就让整局重来。未提供 onBatchRetry 时保持原抛错行为。
+  let pendingBatches = batchTasks;
+  let attempt = 0;
+  while (pendingBatches.length > 0) {
+    attempt += 1;
+    const results = await Promise.allSettled(
+      pendingBatches.map(({ start, profiles }) => generatePersonaBatch(profiles, start)),
+    );
+    const nextPending: { start: number; profiles: BaseProfile[] }[] = [];
+    let firstReason: unknown = null;
+    results.forEach((result, index) => {
+      if (result.status === "rejected") {
+        nextPending.push(pendingBatches[index]);
+        if (firstReason === null) firstReason = result.reason;
+      }
+    });
+    if (nextPending.length === 0) break;
+
+    const firstError =
+      firstReason instanceof Error ? firstReason : new Error(String(firstReason));
+    if (!options?.onBatchRetry) throw firstError;
+
+    const shouldRetry = await options.onBatchRetry({
+      batchStartIndex: nextPending[0].start,
+      attempt,
+      reason: firstError.message,
+    });
+    if (!shouldRetry) throw firstError;
+    pendingBatches = nextPending;
+  }
+
   if (finalizedCharacters.filter(Boolean).length !== baseProfiles.length) {
     throw new Error("Character generation returned incomplete batches");
   }

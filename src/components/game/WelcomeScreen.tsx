@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { FingerprintSimple, PawPrint, Sparkle, Wrench, GearSix, UserCircle, GithubLogo, Star, EnvelopeSimple, Handshake, DotsThreeOutlineVertical, Users, UsersFour } from "@phosphor-icons/react";
+import { FingerprintSimple, Sparkle, Wrench, GearSix, GithubLogo, Star, DotsThreeOutlineVertical, Users, UsersFour, Key } from "@phosphor-icons/react";
 import { WerewolfIcon } from "@/components/icons/FlatIcons";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -9,127 +9,22 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAtom } from "jotai";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import type { DevPreset, DifficultyLevel, Role, StartGameOptions } from "@/types/game";
+import type { DevPreset, Role, StartGameOptions } from "@/types/game";
 import { DevModeButton } from "@/components/DevTools";
 import { GameSetupModal } from "@/components/game/GameSetupModal";
-import { AuthModal } from "@/components/game/AuthModal";
-import { SharePanel } from "@/components/game/SharePanel";
-import { AccountModal } from "@/components/game/AccountModal";
-import { ResetPasswordModal } from "@/components/game/ResetPasswordModal";
-import { UserProfileModal } from "@/components/game/UserProfileModal";
-import { LowCreditModal, LOW_CREDIT_THRESHOLD } from "@/components/game/LowCreditModal";
 import { LocaleSwitcher } from "@/components/game/LocaleSwitcher";
 import { CustomCharacterModal } from "@/components/game/CustomCharacterModal";
+import { ModelConnectionModal } from "@/components/game/ConnectionSettings";
 import { useCustomCharacters } from "@/hooks/useCustomCharacters";
-import { useCredits, type ConsumeCreditResult } from "@/hooks/useCredits";
 import { difficultyAtom, playerCountAtom, preferredRoleAtom } from "@/store/settings";
 import {
-  getGeneratorModel,
-  getModelSource,
-  hasDashscopeKey,
-  hasTokendanceKey,
-  hasZenmuxKey,
-  isTokenPayConnected,
+  getOpenAIModel,
+  isOpenAICompatConfigured,
   MODEL_SOURCE_CHANGE_EVENT,
-  setModelSource,
-  syncTokenPayConnectionState,
-  type ModelSource,
 } from "@/lib/api-keys";
-import { loadTokenPayConnectionWithRetry } from "@/lib/tokenpay-client";
 import { useAppLocale } from "@/i18n/useAppLocale";
-import {
-  SPRING_CAMPAIGN_CODE,
-  SPRING_CAMPAIGN_DAILY_QUOTA,
-  getShanghaiDateKey,
-  isSpringCampaignActive,
-} from "@/lib/spring-campaign";
-import {
-  FREE_ROUNDS_PROMO_ENABLED,
-  REFERRAL_BONUS_ENABLED,
-  SPRING_CAMPAIGN_ENABLED,
-} from "@/lib/welfare-config";
-
-type SponsorCardProps = {
-  sponsorId: string;
-  href: string;
-  className: string;
-  rotate: string;
-  delay: number;
-  logoSrc?: string;
-  logoAlt?: string;
-  label?: string;
-  name?: string;
-  note?: string;
-  children?: React.ReactNode;
-};
 
 const CUSTOM_CHARACTER_SELECTION_STORAGE_KEY = "wolfcha_custom_character_selection";
-
-// Track sponsor click
-async function trackSponsorClick(sponsorId: string) {
-  try {
-    await fetch("/api/sponsor/click", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sponsorId, ref: "homepage" }),
-    });
-  } catch {
-    // Silently fail - don't block navigation
-  }
-}
-
-function SponsorCard({
-  sponsorId,
-  href,
-  className,
-  rotate,
-  delay,
-  logoSrc,
-  logoAlt,
-  label,
-  name,
-  note,
-  children,
-}: SponsorCardProps) {
-  const ariaLabel = [label, name, note].filter(Boolean).join(" · ");
-
-  const handleClick = () => {
-    void trackSponsorClick(sponsorId);
-  };
-
-  // Add ref parameter to href for tracking on sponsor's side
-  // Special handling for OpenCreator: use promo parameter instead of ref
-  const hrefWithRef = sponsorId === "opencreator"
-    ? (href.includes("?") ? `${href}&promo=wolfcha` : `${href}?promo=wolfcha`)
-    : (href.includes("?") ? `${href}&ref=wolfcha` : `${href}?ref=wolfcha`);
-
-  return (
-    <motion.a
-      href={hrefWithRef}
-      target="_blank"
-      rel="noopener noreferrer"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ delay, duration: 0.5 }}
-      className={className}
-      style={{ "--card-rotate": rotate } as React.CSSProperties}
-      aria-label={ariaLabel || undefined}
-      title={ariaLabel || undefined}
-      onClick={handleClick}
-    >
-      <span className="wc-sponsor-card__border" aria-hidden="true" />
-      <div className="wc-sponsor-card__content">
-        {logoSrc && (
-          <img src={logoSrc} alt={logoAlt ?? ""} className="wc-sponsor-card__logo" />
-        )}
-        {label && <div className="wc-sponsor-card__label">{label}</div>}
-        {name && <div className="wc-sponsor-card__name">{name}</div>}
-        {note && <div className="wc-sponsor-card__note">{note}</div>}
-        {children}
-      </div>
-    </motion.a>
-  );
-}
 
 function buildDefaultRoles(playerCount: number): Role[] {
   switch (playerCount) {
@@ -259,60 +154,18 @@ export function WelcomeScreen({
   const t = useTranslations();
   const { locale } = useAppLocale();
   const discordInviteUrl = "https://discord.gg/ETkdZWgy";
-  const sponsorEmail = "zhihuang.oiloil@gmail.com";
-  const sponsorMailto = useMemo(() => {
-    const subject = t("welcome.sponsor.mailSubject");
-    const body = t("welcome.sponsor.mailBody");
-    return `mailto:${sponsorEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  }, [sponsorEmail, t]);
 
-  const {
-    user,
-    session,
-    credits,
-    referralCode,
-    totalReferrals,
-    loading: creditsLoading,
-    consumeCredit,
-    completeGameStartRequest,
-    hasPendingGameStartRequest,
-    redeemCode,
-    signOut,
-    isPasswordRecovery,
-    clearPasswordRecovery,
-    fetchCredits,
-    springCampaign,
-    refreshDemoConfig,
-  } = useCredits();
   const [isSetupOpen, setIsSetupOpen] = useState(false);
+  const [isModelConnectionOpen, setIsModelConnectionOpen] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const paperRef = useRef<HTMLDivElement | null>(null);
   const sealButtonRef = useRef<HTMLButtonElement | null>(null);
   const isStartingRef = useRef(false);
-  const [isAuthOpen, setIsAuthOpen] = useState(false);
-  const [isShareOpen, setIsShareOpen] = useState(false);
-  const [isAccountOpen, setIsAccountOpen] = useState(false);
-  const [isUserProfileOpen, setIsUserProfileOpen] = useState(false);
-  const [isSponsorOpen, setIsSponsorOpen] = useState(false);
-  const [isSpringFestivalOpen, setIsSpringFestivalOpen] = useState(false);
   const [isGroupOpen, setIsGroupOpen] = useState(false);
   const [groupImgOk, setGroupImgOk] = useState<boolean | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCustomCharacterOpen, setIsCustomCharacterOpen] = useState(false);
-  const [isLowCreditOpen, setIsLowCreditOpen] = useState(false);
-  const [userProfileDefaultTab, setUserProfileDefaultTab] = useState<string | undefined>(undefined);
-  const [tokenPayConnected, setTokenPayConnectedState] = useState(false);
-  const tokenPaySyncVersionRef = useRef(0);
-  const tokenPaySyncInFlightRef = useRef<{
-    userId: string;
-    promise: Promise<boolean | null>;
-  } | null>(null);
-  const tokenPayQueryHandledRef = useRef(false);
-  const selectionStorageKey = useMemo(() => {
-    return user?.id
-      ? `${CUSTOM_CHARACTER_SELECTION_STORAGE_KEY}:${user.id}`
-      : CUSTOM_CHARACTER_SELECTION_STORAGE_KEY;
-  }, [user?.id]);
+  const selectionStorageKey = CUSTOM_CHARACTER_SELECTION_STORAGE_KEY;
 
   const readSelectionFromStorage = useCallback(() => {
     if (typeof window === "undefined") return new Set<string>();
@@ -332,72 +185,21 @@ export function WelcomeScreen({
     readSelectionFromStorage()
   );
 
-  const customCharacters = useCustomCharacters(user);
+  const customCharacters = useCustomCharacters();
+  const [, setConfigVersion] = useState(0);
+  useEffect(() => {
+    const refresh = () => setConfigVersion((value) => value + 1);
+    window.addEventListener(MODEL_SOURCE_CHANGE_EVENT, refresh);
+    return () => window.removeEventListener(MODEL_SOURCE_CHANGE_EVENT, refresh);
+  }, []);
   const [difficulty, setDifficulty] = useAtom(difficultyAtom);
   const [playerCount, setPlayerCount] = useAtom(playerCountAtom);
   const [preferredRole, setPreferredRole] = useAtom(preferredRoleAtom);
   const [githubStars, setGithubStars] = useState<number | null>(null);
-  const springCampaignRemainingQuota = springCampaign?.remainingQuota ?? 0;
-  const springCampaignTotalQuota = springCampaign?.totalQuota ?? 0;
-  const springCampaignActiveNow = SPRING_CAMPAIGN_ENABLED
-    && (springCampaign?.active ?? isSpringCampaignActive());
-  const springCampaignDateToday = springCampaignActiveNow ? getShanghaiDateKey() : null;
-  const isSpringCampaignForToday = springCampaignActiveNow
-    && springCampaign?.quotaDate === springCampaignDateToday;
-  const effectiveSpringRemainingQuota = springCampaignActiveNow
-    ? (isSpringCampaignForToday ? springCampaignRemainingQuota : SPRING_CAMPAIGN_DAILY_QUOTA)
-    : 0;
-  const effectiveSpringTotalQuota = springCampaignActiveNow
-    ? (isSpringCampaignForToday ? springCampaignTotalQuota : SPRING_CAMPAIGN_DAILY_QUOTA)
-    : 0;
-  const hasSpringQuota = springCampaignActiveNow && effectiveSpringRemainingQuota > 0;
-  const mayHaveUnclaimedSpringQuota = springCampaignActiveNow && !isSpringCampaignForToday;
-  const springFestivalSeenKey = `wolfcha:${SPRING_CAMPAIGN_CODE}:welcome_seen`;
 
   useEffect(() => {
     if (locale === "en") setIsGroupOpen(false);
   }, [locale]);
-
-  useEffect(() => {
-    if (!SPRING_CAMPAIGN_ENABLED || !springCampaign?.active || !springCampaign.justClaimed) return;
-    toast.success(t("welcome.springCampaign.toast.claimed.title"), {
-      description: t("welcome.springCampaign.toast.claimed.description"),
-    });
-  }, [springCampaign?.active, springCampaign?.justClaimed, t]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || tokenPayQueryHandledRef.current) return;
-    const url = new URL(window.location.href);
-    const tokenPayResult = url.searchParams.get("tokenpay");
-    if (!tokenPayResult) return;
-    const tokenPayErrorResults = new Set(["error", "denied", "invalid_callback", "failed"]);
-    if (tokenPayResult !== "connected" && !tokenPayErrorResults.has(tokenPayResult)) return;
-
-    tokenPayQueryHandledRef.current = true;
-    url.searchParams.delete("tokenpay");
-    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
-    setUserProfileDefaultTab("tokenpay");
-    setIsUserProfileOpen(true);
-    if (tokenPayResult === "connected") {
-      setModelSource("tokenpay");
-    }
-    if (tokenPayErrorResults.has(tokenPayResult)) {
-      toast.error(t("tokenPay.oauthError"));
-    }
-  }, [t]);
-
-  useEffect(() => {
-    if (!springCampaignActiveNow) return;
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    const popupDebugMode = params.get("spring_popup_debug") === "1";
-    const seen = window.localStorage.getItem(springFestivalSeenKey);
-    if (!popupDebugMode && seen === "1") return;
-    if (!popupDebugMode) {
-      window.localStorage.setItem(springFestivalSeenKey, "1");
-    }
-    setIsSpringFestivalOpen(true);
-  }, [springCampaignActiveNow, springFestivalSeenKey]);
 
   useEffect(() => {
     selectionStorageKeyRef.current = selectionStorageKey;
@@ -421,88 +223,6 @@ export function WelcomeScreen({
       setSelectedCharacterIds(filtered);
     }
   }, [customCharacters.characters, customCharacters.loading, selectedCharacterIds]);
-
-  const [modelSource, setModelSourceState] = useState<ModelSource>(() => getModelSource());
-
-  const handleTokenPayConnectionChange = useCallback((connected: boolean) => {
-    const nextSource = syncTokenPayConnectionState(connected);
-    setTokenPayConnectedState(connected);
-    setModelSourceState(nextSource);
-  }, []);
-
-  const refreshTokenPayConnection = useCallback((): Promise<boolean | null> => {
-    const userId = session?.user.id;
-    if (!userId) {
-      handleTokenPayConnectionChange(false);
-      return Promise.resolve(false);
-    }
-
-    const currentRequest = tokenPaySyncInFlightRef.current;
-    if (currentRequest?.userId === userId) return currentRequest.promise;
-
-    const version = ++tokenPaySyncVersionRef.current;
-    const promise = loadTokenPayConnectionWithRetry(userId)
-      .then((connection) => {
-        if (tokenPaySyncVersionRef.current !== version) return null;
-        handleTokenPayConnectionChange(connection.connected);
-        return connection.connected;
-      })
-      .catch((error) => {
-        if (tokenPaySyncVersionRef.current !== version) return null;
-        console.warn("[TokenPay] Connection sync failed", error);
-        return null;
-      })
-      .finally(() => {
-        if (tokenPaySyncVersionRef.current === version) {
-          tokenPaySyncInFlightRef.current = null;
-        }
-      });
-    tokenPaySyncInFlightRef.current = { userId, promise };
-    return promise;
-  }, [handleTokenPayConnectionChange, session?.user.id]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const syncModelSource = () => {
-      setModelSourceState(getModelSource());
-      setTokenPayConnectedState(isTokenPayConnected());
-    };
-    const onStorage = (event: StorageEvent) => {
-      if (
-        event.key !== "wolfcha_model_source" &&
-        event.key !== "wolfcha_custom_key_enabled" &&
-        event.key !== "wolfcha_tokenpay_connected"
-      ) return;
-      syncModelSource();
-    };
-    window.addEventListener("storage", onStorage);
-    window.addEventListener(MODEL_SOURCE_CHANGE_EVENT, syncModelSource);
-    return () => {
-      window.removeEventListener("storage", onStorage);
-      window.removeEventListener(MODEL_SOURCE_CHANGE_EVENT, syncModelSource);
-    };
-  }, []);
-
-  useEffect(() => {
-    tokenPaySyncVersionRef.current += 1;
-    tokenPaySyncInFlightRef.current = null;
-    handleTokenPayConnectionChange(false);
-    if (!session?.user.id) {
-      return;
-    }
-    void refreshTokenPayConnection();
-  }, [handleTokenPayConnectionChange, refreshTokenPayConnection, session?.user.id]);
-
-  useEffect(() => {
-    if (!session?.user.id) return;
-    const refresh = () => void refreshTokenPayConnection();
-    window.addEventListener("focus", refresh);
-    window.addEventListener("online", refresh);
-    return () => {
-      window.removeEventListener("focus", refresh);
-      window.removeEventListener("online", refresh);
-    };
-  }, [refreshTokenPayConnection, session?.user.id]);
 
   // 调试面板状态
   const [mounted, setMounted] = useState(false);
@@ -596,21 +316,15 @@ export function WelcomeScreen({
   }, [playerCount, t]);
 
   const canConfirm = useMemo(() => {
-    return !!humanName.trim() && !isLoading && !isTransitioning && !creditsLoading;
-  }, [humanName, isLoading, isTransitioning, creditsLoading]);
+    return !!humanName.trim() && !isLoading && !isTransitioning;
+  }, [humanName, isLoading, isTransitioning]);
 
   const isAnyModalOpen =
     isSetupOpen ||
-    isAuthOpen ||
-    (REFERRAL_BONUS_ENABLED && isShareOpen) ||
-    isAccountOpen ||
-    isUserProfileOpen ||
-    isSponsorOpen ||
-    (SPRING_CAMPAIGN_ENABLED && isSpringFestivalOpen) ||
+    isModelConnectionOpen ||
     isGroupOpen ||
     isMobileMenuOpen ||
     isCustomCharacterOpen ||
-    isLowCreditOpen ||
     isDevConsoleOpen;
 
   useEffect(() => {
@@ -691,66 +405,9 @@ export function WelcomeScreen({
     }
   };
 
-  const handleCopySponsorEmail = async () => {
-    try {
-      await navigator.clipboard.writeText(sponsorEmail);
-      toast.success(t("welcome.sponsor.copySuccess"), { description: sponsorEmail });
-    } catch {
-      toast(t("welcome.sponsor.copyFallback"), { description: sponsorEmail });
-    }
-  };
-
-  const openTokenPayConnection = (reauthorize: boolean) => {
-    syncTokenPayConnectionState(false);
-    setTokenPayConnectedState(false);
-    setUserProfileDefaultTab("tokenpay");
-    setIsUserProfileOpen(true);
-    toast.error(
-      t(reauthorize ? "tokenPay.reauthorizeTitle" : "tokenPay.disconnectedTitle"),
-      {
-        description: t(
-          reauthorize
-            ? "tokenPay.reauthorizeDescription"
-            : "tokenPay.disconnectedDescription",
-        ),
-      },
-    );
-  };
-
-  const handleCreditFailure = (result?: ConsumeCreditResult) => {
-    setIsTransitioning(false);
-    onAbort?.();
-    if (
-      getModelSource() === "tokenpay" &&
-      (result?.recoveryAction === "reauthorize_api_key" ||
-        result?.code === "tokenpay_connection_unavailable")
-    ) {
-      openTokenPayConnection(true);
-      return;
-    }
-    const insufficientCredits =
-      result?.status === 400 &&
-      result.error?.toLowerCase().includes("insufficient") === true;
-    if (!insufficientCredits) {
-      toast.error(t("welcome.toast.startFail.title"), {
-        description: t("welcome.toast.startFail.description"),
-      });
-      return;
-    }
-    if (REFERRAL_BONUS_ENABLED) {
-      setIsShareOpen(true);
-    } else {
-      setUserProfileDefaultTab("payAsYouGo");
-      setIsUserProfileOpen(true);
-    }
-    toast.error(t("welcome.toast.creditFail.title"), { description: t("welcome.toast.creditFail.description") });
-  };
-
-  const hasActiveExternalModelSource = () => (
-    (getModelSource() === "custom" &&
-      (hasZenmuxKey() || hasDashscopeKey() || hasTokendanceKey())) ||
-    (getModelSource() === "tokenpay" && (tokenPayConnected || isTokenPayConnected()))
-  );
+  const llmGatewayLabel = isOpenAICompatConfigured()
+    ? t("customKey.openai.connected", { model: getOpenAIModel() })
+    : t("customKey.openai.entryAction");
 
   const buildStartOptions = (gameSessionId?: string | null): StartGameOptions => {
     const roles = devTab === "roles" && devRoleOverrideEnabled && roleConfigValid ? (fixedRoles as Role[]) : undefined;
@@ -779,22 +436,6 @@ export function WelcomeScreen({
     };
   };
 
-  const getClientRegion = () => {
-    if (typeof navigator === "undefined") return null;
-    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "unknown";
-    return `${navigator.language || "unknown"}|${timeZone}`;
-  };
-
-  const buildCreditConsumeOptions = () => ({
-    createSession: true,
-    playerCount,
-    difficulty,
-    usedCustomKey: getModelSource() !== "project",
-    modelUsed: getGeneratorModel(),
-    userEmail: user?.email ?? null,
-    region: getClientRegion(),
-  });
-
   const waitForStartAnimation = async (startedAt: number) => {
     const remaining = Math.max(0, 800 - (Date.now() - startedAt));
     if (remaining <= 0) return;
@@ -803,7 +444,7 @@ export function WelcomeScreen({
     });
   };
 
-  const startGameWithCreditGuard = async (skipCredit: boolean) => {
+  const startGame = async () => {
     if (isStartingRef.current) {
       return;
     }
@@ -815,33 +456,13 @@ export function WelcomeScreen({
     if (seal) createParticles(seal);
 
     setIsTransitioning(true);
-
-    let creditAuthorized = skipCredit;
-    let startRequestId: string | undefined;
     try {
-      let gameSessionId: string | null = null;
-      if (!skipCredit) {
-        const result = await consumeCredit(buildCreditConsumeOptions());
-        if (!result.success) {
-          handleCreditFailure(result);
-          return;
-        }
-        creditAuthorized = true;
-        startRequestId = result.startRequestId;
-        gameSessionId = result.sessionId ?? null;
-      }
-
       await waitForStartAnimation(animationStartedAt);
-      await onStart(buildStartOptions(gameSessionId));
-      completeGameStartRequest(startRequestId);
+      await onStart(buildStartOptions());
     } catch (error) {
       console.error("[welcome] failed to start game", error);
-      if (!creditAuthorized) {
-        handleCreditFailure();
-      } else {
-        setIsTransitioning(false);
-        onAbort?.();
-      }
+      setIsTransitioning(false);
+      onAbort?.();
     } finally {
       isStartingRef.current = false;
     }
@@ -854,67 +475,14 @@ export function WelcomeScreen({
     if (isStartingRef.current) {
       return;
     }
-    const latestDemoConfig = await refreshDemoConfig(true);
-    const demoModeActive = latestDemoConfig.active;
-
-    // Demo mode: allow guests and skip credit checks
-    if (!user && !demoModeActive) {
-      setIsAuthOpen(true);
-      toast(t("welcome.toast.signInFirst"));
+    if (!isOpenAICompatConfigured()) {
+      setIsModelConnectionOpen(true);
+      toast.error(t("customKey.openai.entryAction"), {
+        description: t("customKey.openai.howToEnable"),
+      });
       return;
     }
-
-    if (getModelSource() === "tokenpay") {
-      const connected = tokenPayConnected
-        ? true
-        : await refreshTokenPayConnection();
-      if (!connected) {
-        openTokenPayConnection(false);
-        return;
-      }
-    }
-
-    const hasExternalSource = hasActiveExternalModelSource();
-
-    if (
-      !demoModeActive &&
-      !hasExternalSource &&
-      !hasPendingGameStartRequest(buildCreditConsumeOptions()) &&
-      credits !== null &&
-      credits <= LOW_CREDIT_THRESHOLD &&
-      !hasSpringQuota &&
-      !mayHaveUnclaimedSpringQuota
-    ) {
-      setIsLowCreditOpen(true);
-      return;
-    }
-
-    await startGameWithCreditGuard(demoModeActive);
-  };
-
-  const handleOpenPayAsYouGo = () => {
-    setUserProfileDefaultTab("payAsYouGo");
-    setIsUserProfileOpen(true);
-  };
-
-  const handleOpenTokenPay = () => {
-    setUserProfileDefaultTab("tokenpay");
-    setIsUserProfileOpen(true);
-  };
-
-  const handleStartGameFromLowCreditModal = async () => {
-    if (getModelSource() === "tokenpay") {
-      const connected = tokenPayConnected
-        ? true
-        : await refreshTokenPayConnection();
-      if (!connected) {
-        setIsLowCreditOpen(false);
-        openTokenPayConnection(false);
-        return;
-      }
-    }
-    const latestDemoConfig = await refreshDemoConfig(true);
-    await startGameWithCreditGuard(latestDemoConfig.active);
+    await startGame();
   };
 
   const handleOpenGroup = () => {
@@ -964,49 +532,10 @@ export function WelcomeScreen({
           onAiVoiceEnabledChange={onAiVoiceEnabledChange}
           onAutoAdvanceDialogueEnabledChange={onAutoAdvanceDialogueEnabledChange}
         />
-        <AuthModal open={isAuthOpen} onOpenChange={setIsAuthOpen} />
-        <AccountModal open={isAccountOpen} onOpenChange={setIsAccountOpen} />
-        <UserProfileModal
-          open={isUserProfileOpen}
-          onOpenChange={(open) => {
-            setIsUserProfileOpen(open);
-            if (!open) setUserProfileDefaultTab(undefined);
-          }}
-          email={user?.email}
-          credits={credits ?? undefined}
-          springCampaign={springCampaign}
-          referralCode={referralCode}
-          totalReferrals={totalReferrals}
-          onChangePassword={() => setIsAccountOpen(true)}
-          onShareInvite={() => setIsShareOpen(true)}
-          onSignOut={signOut}
-          onRedeemCode={redeemCode}
-          onModelSourceChange={setModelSourceState}
-          onTokenPayConnectionChange={handleTokenPayConnectionChange}
-          onCreditsChange={fetchCredits}
-          defaultTab={userProfileDefaultTab}
+        <ModelConnectionModal
+          open={isModelConnectionOpen}
+          onOpenChange={setIsModelConnectionOpen}
         />
-        <LowCreditModal
-          open={isLowCreditOpen}
-          onOpenChange={setIsLowCreditOpen}
-          credits={credits ?? 0}
-          onStartGame={handleStartGameFromLowCreditModal}
-          onOpenPayAsYouGo={handleOpenPayAsYouGo}
-          onOpenTokenPay={handleOpenTokenPay}
-        />
-        <ResetPasswordModal
-          open={isPasswordRecovery}
-          onOpenChange={(open) => !open && clearPasswordRecovery()}
-          onSuccess={clearPasswordRecovery}
-        />
-        {REFERRAL_BONUS_ENABLED && (
-          <SharePanel
-            open={isShareOpen}
-            onOpenChange={setIsShareOpen}
-            referralCode={referralCode}
-            totalReferrals={totalReferrals}
-          />
-        )}
         <CustomCharacterModal
           open={isCustomCharacterOpen}
           onOpenChange={setIsCustomCharacterOpen}
@@ -1054,96 +583,11 @@ export function WelcomeScreen({
           </DialogContent>
         </Dialog>
 
-        <Dialog open={isSponsorOpen} onOpenChange={setIsSponsorOpen}>
-          <DialogContent className="max-w-[560px]">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Handshake size={18} weight="duotone" />
-                {t("welcome.sponsor.title")}
-              </DialogTitle>
-              <DialogDescription>
-                {t("welcome.sponsor.subtitle")}
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-3 text-sm leading-relaxed text-[var(--text-primary)]">
-              <p>
-                {t("welcome.sponsor.description")}
-              </p>
-              <ul className="list-disc pl-5 space-y-1 text-[var(--text-secondary)]">
-                <li>{t("welcome.sponsor.items.credits")}</li>
-                <li>{t("welcome.sponsor.items.media")}</li>
-                <li>{t("welcome.sponsor.items.collaboration")}</li>
-                <li>{t("welcome.sponsor.items.community")}</li>
-              </ul>
-              <p className="text-[var(--text-secondary)]">
-                {t("welcome.sponsor.note")}
-              </p>
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
-              <Button type="button" variant="outline" onClick={handleCopySponsorEmail} className="gap-2">
-                <EnvelopeSimple size={16} />
-                {t("welcome.sponsor.copyEmail")}
-              </Button>
-              <Button asChild className="gap-2">
-                <a href={sponsorMailto} target="_blank" rel="noopener noreferrer">
-                  <EnvelopeSimple size={16} />
-                  {t("welcome.sponsor.sendEmail")}
-                </a>
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {SPRING_CAMPAIGN_ENABLED && (
-          <Dialog open={isSpringFestivalOpen} onOpenChange={setIsSpringFestivalOpen}>
-            <DialogContent className="max-w-[560px] overflow-hidden border-2 border-[var(--border-color)] bg-[var(--bg-card)] p-0">
-              <motion.div
-                initial={{ opacity: 0, y: 18, scale: 0.92, rotateX: -14, filter: "blur(8px)" }}
-                animate={{ opacity: 1, y: 0, scale: 1, rotateX: 0, filter: "blur(0px)" }}
-                transition={{ duration: 0.55, ease: "easeOut" }}
-                style={{ transformOrigin: "top center", perspective: 1100 }}
-                className="relative"
-              >
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.22),transparent_40%)]" />
-                <div className="bg-gradient-to-r from-[#8b1a1a] via-[#b4232b] to-[#8b1a1a] px-6 py-5 text-white">
-                  <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-white/80">
-                    <Sparkle size={14} weight="fill" />
-                    {t("welcome.springCampaign.modal.badge")}
-                  </div>
-                  <h3 className="mt-2 text-2xl font-semibold tracking-wide">
-                    {t("welcome.springCampaign.modal.title")}
-                  </h3>
-                  <p className="mt-1 text-sm text-white/90">
-                    {t("welcome.springCampaign.modal.subtitle")}
-                  </p>
-                </div>
-                <div className="space-y-3 px-6 py-5 text-sm">
-                  <p className="text-[var(--text-primary)]">{t("welcome.springCampaign.modal.line1")}</p>
-                  <p className="text-[var(--text-secondary)]">{t("welcome.springCampaign.modal.line2")}</p>
-                  <p className="text-[var(--text-secondary)]">{t("welcome.springCampaign.modal.line3")}</p>
-                  <div className="rounded-lg border border-[var(--border-color)] bg-white/60 px-3 py-2 text-xs text-[var(--text-secondary)]">
-                    {t("welcome.springCampaign.modal.note")}
-                  </div>
-                  <Button
-                    type="button"
-                    className="w-full bg-[#b4232b] text-white hover:bg-[#9f1f26]"
-                    onClick={() => setIsSpringFestivalOpen(false)}
-                  >
-                    {t("welcome.springCampaign.modal.action")}
-                  </Button>
-                </div>
-              </motion.div>
-            </DialogContent>
-          </Dialog>
-        )}
-
         <Dialog open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
           <DialogContent className="max-w-[420px]">
             <DialogHeader>
               <DialogTitle>{t("welcome.mobileMenu.title")}</DialogTitle>
-              <DialogDescription>{t("welcome.mobileMenu.description")}</DialogDescription>
+            <DialogDescription>{t("welcome.mobileMenu.description")}</DialogDescription>
             </DialogHeader>
             <div className="grid gap-2">
               <Button
@@ -1152,11 +596,11 @@ export function WelcomeScreen({
                 className="justify-start"
                 onClick={() => {
                   setIsMobileMenuOpen(false);
-                  setIsSponsorOpen(true);
+                  setIsModelConnectionOpen(true);
                 }}
               >
-                <Handshake size={16} />
-                {t("welcome.sponsor.action")}
+                <Key size={16} />
+                {llmGatewayLabel}
               </Button>
               <Button
                 type="button"
@@ -1170,33 +614,6 @@ export function WelcomeScreen({
                 <GearSix size={16} />
                 {t("welcome.settings")}
               </Button>
-              {user ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="justify-start"
-                  onClick={() => {
-                    setIsMobileMenuOpen(false);
-                    setIsUserProfileOpen(true);
-                  }}
-                >
-                  <UserCircle size={16} />
-                  {t("welcome.account.info")}
-                </Button>
-              ) : (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="justify-start"
-                  onClick={() => {
-                    setIsMobileMenuOpen(false);
-                    setIsAuthOpen(true);
-                  }}
-                >
-                  <UserCircle size={16} />
-                  {t("welcome.auth.signIn")}
-                </Button>
-              )}
               <Button asChild variant="outline" className="justify-start">
                 <a
                   href="https://github.com/oil-oil/wolfcha"
@@ -1211,49 +628,6 @@ export function WelcomeScreen({
             </div>
           </DialogContent>
         </Dialog>
-
-        {/* Scattered sponsor cards */}
-        <div className="wc-sponsor-cards" aria-label={t("welcome.sponsor.showcaseLabel")}>
-          {/* Sponsor card - Bailian (左上) */}
-          <SponsorCard
-            sponsorId="bailian"
-            href="https://bailian.console.aliyun.com/"
-            className="wc-sponsor-card wc-sponsor-card--with-logo wc-sponsor-card--top-left"
-            rotate="4deg"
-            delay={0.15}
-            logoSrc="/sponsor/bailian.png"
-            logoAlt="Bailian"
-            name="Bailian"
-            note={t("welcome.sponsor.cards.bailian")}
-          />
-
-          {/* Sponsor card - TokenDance (右下) */}
-          <SponsorCard
-            sponsorId="tokendance"
-            href="https://tokendance.space/"
-            className="wc-sponsor-card wc-sponsor-card--with-logo wc-sponsor-card--right-bottom wc-sponsor-card--tokendance"
-            rotate="-4deg"
-            delay={0.6}
-            logoSrc="/sponsor/tokendance-icon.svg"
-            logoAlt="TokenDance"
-            name="TokenDance"
-            note={t("welcome.sponsor.cards.tokendance")}
-          />
-
-          {/* Temporarily hidden: Sponsor card - Watcha (right-center)
-          <SponsorCard
-            sponsorId="watcha"
-            href="https://watcha.cn/"
-            className="wc-sponsor-card wc-sponsor-card--with-logo wc-sponsor-card--watcha"
-            rotate="5deg"
-            delay={0.45}
-            logoSrc="/sponsor/watcha.svg"
-            logoAlt="观猹"
-            name="观猹"
-            note={t("welcome.sponsor.cards.watcha")}
-          />
-          */}
-        </div>
 
         <div className="wc-welcome-actions absolute top-5 right-5 z-20 flex items-center gap-2">
           <div className="hidden sm:flex items-center gap-2">
@@ -1277,15 +651,6 @@ export function WelcomeScreen({
             <Button
               type="button"
               variant="outline"
-              onClick={() => setIsSponsorOpen(true)}
-              className="h-8 text-xs gap-2"
-            >
-              <Handshake size={16} />
-              {t("welcome.sponsor.action")}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
               onClick={handleOpenGroup}
               className="h-8 text-xs gap-2"
             >
@@ -1293,50 +658,15 @@ export function WelcomeScreen({
               {t("welcome.group.title")}
             </Button>
 
-            {user ? (
-              <button
-                type="button"
-                onClick={() => setIsUserProfileOpen(true)}
-                className="hidden md:flex items-center gap-2 rounded-md border-2 border-[var(--border-color)] bg-[var(--bg-card)] px-2.5 py-1.5 text-xs text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
-                title={t("welcome.account.viewInfo")}
-              >
-                <UserCircle size={16} />
-                <span className="truncate max-w-[160px]">{user.email ?? t("userProfile.loggedIn")}</span>
-                {modelSource === "tokenpay" && tokenPayConnected ? (
-                  <span className="opacity-70">{t("tokenPay.connectedShort")}</span>
-                ) : modelSource === "custom" ? (
-                  <span className="opacity-70">{t("customKey.title")}</span>
-                ) : (
-                  <span className="opacity-70">
-                    {springCampaignActiveNow ? t("welcome.account.tempQuotaShort", { count: effectiveSpringRemainingQuota }) : null}
-                    {springCampaignActiveNow ? " · " : null}
-                    {t("welcome.account.remaining", { count: creditsLoading ? "..." : (credits ?? 0) })}
-                  </span>
-                )}
-              </button>
-            ) : (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsAuthOpen(true)}
-                className="h-8 text-xs gap-2"
-              >
-                <UserCircle size={16} />
-                {t("welcome.auth.signIn")}
-              </Button>
-            )}
-
-            {user && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsUserProfileOpen(true)}
-                className="h-8 text-xs gap-2 md:hidden"
-              >
-                <UserCircle size={16} />
-                {t("welcome.account.info")}
-              </Button>
-            )}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsModelConnectionOpen(true)}
+              className="h-8 text-xs gap-2"
+            >
+              <Key size={16} />
+              {llmGatewayLabel}
+            </Button>
 
             <Button
               type="button"
@@ -1351,15 +681,6 @@ export function WelcomeScreen({
 
           <div className="flex sm:hidden items-center gap-2">
             <LocaleSwitcher className="shrink-0" />
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsSponsorOpen(true)}
-              className="h-8 text-xs gap-2"
-            >
-              <Handshake size={16} />
-              {t("welcome.sponsor.short")}
-            </Button>
             <Button
               type="button"
               variant="outline"
@@ -1390,116 +711,10 @@ export function WelcomeScreen({
           <div ref={paperRef} className="wc-contract-paper">
             <div className="wc-contract-borders" aria-hidden="true" />
 
-            {locale === "zh" && FREE_ROUNDS_PROMO_ENABLED && (
-              <a
-                href="https://my.feishu.cn/share/base/form/shrcnqLuGo3qyh64vFp2JhCN9CF"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="wc-promo-tag-container"
-                aria-label="赠送次数"
-              >
-                <span className="wc-paper-clip" aria-hidden="true" />
-                <span className="wc-promo-ticket">
-                  <span className="wc-shine-effect" aria-hidden="true" />
-                  <span className="wc-promo-title">赠送次数</span>
-                  <span className="wc-promo-subtitle">Free Rounds</span>
-                </span>
-              </a>
-            )}
-
-            {/* Mobile: inline sponsor stamps at top of paper */}
-            <div className="wc-paper-sponsors sm:hidden">
-              <a
-                href="https://bailian.console.aliyun.com/?ref=wolfcha"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="wc-paper-stamp"
-                style={{ "--stamp-rotate": "4deg" } as React.CSSProperties}
-                onClick={() => void trackSponsorClick("bailian")}
-              >
-                <img src="/sponsor/bailian.png" alt="百炼" className="wc-paper-stamp__logo" />
-                <span className="wc-paper-stamp__name">百炼</span>
-              </a>
-              <a
-                href="https://tokendance.space/?ref=wolfcha"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="wc-paper-stamp wc-paper-stamp--tokendance"
-                style={{ "--stamp-rotate": "-3deg" } as React.CSSProperties}
-                onClick={() => void trackSponsorClick("tokendance")}
-              >
-                <img src="/sponsor/tokendance-icon.svg" alt="TokenDance" className="wc-paper-stamp__logo" />
-                <span className="wc-paper-stamp__name">TokenDance</span>
-              </a>
-              {/* Temporarily hidden: Watcha paper stamp
-              <a
-                href="https://watcha.cn/?ref=wolfcha"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="wc-paper-stamp"
-                style={{ "--stamp-rotate": "6deg" } as React.CSSProperties}
-                onClick={() => void trackSponsorClick("watcha")}
-              >
-                <img src="/sponsor/watcha.svg" alt="观猹" className="wc-paper-stamp__logo" />
-                <span className="wc-paper-stamp__name">观猹</span>
-              </a>
-              */}
-            </div>
-
             <div className="mt-2 text-center">
               <div className="wc-contract-title">WOLFCHA</div>
               <div className="wc-contract-subtitle">{t("welcome.subtitle")}</div>
             </div>
-
-            <div className="mt-5">
-              {springCampaignActiveNow ? (
-                <div className="relative rotate-[-1deg]">
-                  <div
-                    className="pointer-events-none absolute -top-2 left-6 h-4 w-20 rotate-[-6deg] rounded-sm border border-black/10 bg-white/60 shadow-sm"
-                    aria-hidden="true"
-                  />
-                  <div className="rounded-xl border border-[var(--border-color)] bg-white/60 px-4 py-3 shadow-[0_10px_24px_rgba(0,0,0,0.08)] backdrop-blur-sm">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold text-[var(--text-primary)]">
-                        {t("welcome.springCampaign.title")}
-                      </p>
-                      <p className="text-xs text-[var(--text-muted)]">
-                        {t("welcome.springCampaign.range")}
-                      </p>
-                    </div>
-                    <p className="mt-1 text-xs leading-snug text-[var(--text-secondary)]">
-                      {user
-                        ? t("welcome.springCampaign.claimedStatus", {
-                          count: springCampaignActiveNow ? effectiveSpringRemainingQuota : SPRING_CAMPAIGN_DAILY_QUOTA,
-                          total: springCampaignActiveNow ? effectiveSpringTotalQuota : SPRING_CAMPAIGN_DAILY_QUOTA,
-                        })
-                        : t("welcome.springCampaign.signInHint")}
-                    </p>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-
-            {/* Temporarily hidden: Watcha official rating badge
-            <div className="mt-5 flex justify-center">
-              <a
-                href="https://watcha.cn/products/wolfcha?tab=review&utm_source=product-badge&utm_content=review"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="wc-watcha-paper-badge"
-                aria-label={t("welcome.watchaRating.ariaLabel")}
-                title={t("welcome.watchaRating.title")}
-              >
-                <img
-                  src="https://watcha.cn/api/v2/products/wolfcha/badge?style=1&dark=false"
-                  alt={t("welcome.watchaRating.title")}
-                  width={360}
-                  loading="lazy"
-                  draggable={false}
-                />
-              </a>
-            </div>
-            */}
 
             <div className="mt-7 text-center wc-contract-body">
               <div className="wc-contract-oath">
@@ -1548,26 +763,24 @@ export function WelcomeScreen({
 
 
             {/* Custom Character Entry */}
-            {user && (
-              <button
-                type="button"
-                onClick={() => setIsCustomCharacterOpen(true)}
-                className="mt-6 mx-auto flex items-center gap-2 px-3 py-1.5 rounded-md border-2 border-dashed border-[var(--border-color)] text-xs text-[var(--text-secondary)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] transition-colors"
-              >
-                <UsersFour size={14} />
-                <span>{t("customCharacter.entryButton")}</span>
-                {selectedCharacterIds.size > 0 && (
-                  <span className="px-1.5 py-0.5 rounded-full bg-[var(--color-accent)] text-white text-[10px] font-medium">
-                    {selectedCharacterIds.size}
-                  </span>
-                )}
-                {customCharacters.characters.length > 0 && selectedCharacterIds.size === 0 && (
-                  <span className="px-1.5 py-0.5 rounded-full bg-[var(--text-muted)]/20 text-[var(--text-muted)] text-[10px] font-medium">
-                    {customCharacters.characters.length}
-                  </span>
-                )}
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setIsCustomCharacterOpen(true)}
+              className="mt-6 mx-auto flex items-center gap-2 px-3 py-1.5 rounded-md border-2 border-dashed border-[var(--border-color)] text-xs text-[var(--text-secondary)] hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] transition-colors"
+            >
+              <UsersFour size={14} />
+              <span>{t("customCharacter.entryButton")}</span>
+              {selectedCharacterIds.size > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full bg-[var(--color-accent)] text-white text-[10px] font-medium">
+                  {selectedCharacterIds.size}
+                </span>
+              )}
+              {customCharacters.characters.length > 0 && selectedCharacterIds.size === 0 && (
+                <span className="px-1.5 py-0.5 rounded-full bg-[var(--text-muted)]/20 text-[var(--text-muted)] text-[10px] font-medium">
+                  {customCharacters.characters.length}
+                </span>
+              )}
+            </button>
 
             <div className="mt-4 flex flex-col items-center gap-3">
               <div className="wc-seal-hint">

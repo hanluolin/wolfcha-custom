@@ -505,10 +505,10 @@ export function LandingContent() {
         : "Click the settings icon in the top right corner of the game interface to adjust BGM volume, sound effects, AI voice reading, auto-advance dialogue, and more.",
     },
     {
-      q: isZh ? "如何查看我的游戏数据？" : "How do I view my game data?",
+      q: isZh ? "如何配置 LLM 模型和语音？" : "How do I configure the LLM model and voice?",
       a: isZh
-        ? "点击头像进入个人中心，可以查看积分、邀请码、已邀请人数等信息。也可以配置自己的 API Key。"
-        : "Click your avatar to access the profile center, where you can view credits, referral code, and referral count. You can also configure custom API keys to use more models.",
+        ? "点击游戏界面右上角的“配置 LLM 网关”，填写自己的 OpenAI 兼容 API 地址、Key 与模型名即可开局；语音需要可选的 MiniMax Key。所有配置只保存在本机。"
+        : "Click “Configure LLM gateway” in the top-right corner and enter your own OpenAI-compatible API URL, key, and model name to start playing. Voice requires an optional MiniMax key. All settings stay on this device.",
     },
     {
       q: isZh ? "支持哪些语言？" : "What languages are supported?",

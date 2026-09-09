@@ -39,6 +39,7 @@ import { BADGE_TRANSFER_TORN } from "@/lib/game-master";
 
 // Components
 import { WelcomeScreen } from "@/components/game/WelcomeScreen";
+import { CharacterRetryDialog } from "@/components/game/CharacterRetryDialog";
 import { PlayerCardCompact } from "@/components/game/PlayerCardCompact";
 import { DialogArea } from "@/components/game/DialogArea";
 import { BottomActionPanel } from "@/components/game/BottomActionPanel";
@@ -50,7 +51,6 @@ import { NightActionOverlay, type NightActionOverlayType } from "@/components/ga
 import { TutorialOverlay, type TutorialPayload } from "@/components/game/TutorialOverlay";
 import { DevConsole, DevModeButton } from "@/components/DevTools";
 import { SettingsModal } from "@/components/game/SettingsModal";
-import { TokenPayRecoveryHost } from "@/components/game/TokenPayRecoveryHost";
 
 import { buildSimpleAvatarUrl, getModelLogoUrl } from "@/lib/avatar-config";
 import { audioManager, makeAudioTaskId } from "@/lib/audio-manager";
@@ -59,7 +59,6 @@ import { resolveVoiceId, type AppLocale } from "@/lib/voice-constants";
 import { getLocale } from "@/i18n/locale-store";
 import { useSettings } from "@/hooks/useSettings";
 import { useTutorial } from "@/hooks/useTutorial";
-import { persistReferralFromCurrentUrl, removeReferralFromCurrentUrl } from "@/lib/referral";
 import { useRouter, useParams } from "next/navigation";
 import { useGameAnalysis } from "@/hooks/useGameAnalysis";
 
@@ -156,6 +155,8 @@ export default function Home() {
     showTable,
     humanPlayer,
     isNight,
+    characterRetry,
+    confirmCharacterBatchRetry,
     startGame,
     continueAfterRoleReveal,
     restartGame,
@@ -203,11 +204,6 @@ export default function Home() {
   useEffect(() => {
     visualIsNightRef.current = visualIsNight;
   }, [visualIsNight]);
-
-  useEffect(() => {
-    persistReferralFromCurrentUrl();
-    removeReferralFromCurrentUrl();
-  }, []);
 
   useEffect(() => {
     const media = window.matchMedia("(max-width: 768px)");
@@ -1255,7 +1251,7 @@ export default function Home() {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-transparent">
-      <TokenPayRecoveryHost />
+      <CharacterRetryDialog retry={characterRetry} onConfirm={confirmCharacterBatchRetry} />
       <GameBackground isNight={visualIsNight} isBlinking={!!dayNightBlinkPhase} />
 
       <motion.div

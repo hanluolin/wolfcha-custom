@@ -8,6 +8,7 @@ import type { GameState } from "@/types/game";
 import { aiLogger, type AILogEntry } from "@/lib/ai-logger";
 import { useTranslations } from "next-intl";
 import { useAppLocale } from "@/i18n/useAppLocale";
+import { ConnectionSettingsForm } from "@/components/game/ConnectionSettings";
 
 interface SoundSettingsSectionProps {
   bgmVolume: number;
@@ -121,7 +122,7 @@ export function SettingsModal({
   const t = useTranslations();
   const { locale } = useAppLocale();
   const discordInviteUrl = "https://discord.gg/ETkdZWgy";
-  const [view, setView] = useState<"settings" | "about" | "exitConfirm">("settings");
+  const [view, setView] = useState<"settings" | "about" | "connection" | "exitConfirm">("settings");
   const [groupImgOk, setGroupImgOk] = useState<boolean | null>(null);
   const [aiLogs, setAiLogs] = useState<AILogEntry[]>([]);
 
@@ -206,10 +207,10 @@ export function SettingsModal({
       <DialogContent className="w-[92vw] max-w-md max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-serif text-[var(--text-primary)]">
-            {view === "about" ? t("settings.about.title") : view === "exitConfirm" ? t("settings.game.exitConfirmTitle") : t("settings.title")}
+            {view === "about" ? t("settings.about.title") : view === "connection" ? t("settings.connection.title") : view === "exitConfirm" ? t("settings.game.exitConfirmTitle") : t("settings.title")}
           </DialogTitle>
           <DialogDescription className="text-[var(--text-muted)]">
-            {view === "about" ? t("settings.about.description") : view === "exitConfirm" ? t("settings.game.exitConfirmDescription") : t("settings.description")}
+            {view === "about" ? t("settings.about.description") : view === "connection" ? t("settings.connection.description") : view === "exitConfirm" ? t("settings.game.exitConfirmDescription") : t("settings.description")}
           </DialogDescription>
         </DialogHeader>
 
@@ -238,6 +239,13 @@ export function SettingsModal({
                 {t("settings.game.exitConfirmButton")}
               </Button>
             </div>
+          </div>
+        ) : view === "connection" ? (
+          <div className="space-y-4">
+            <ConnectionSettingsForm onSaved={() => setView("settings")} />
+            <Button type="button" variant="outline" onClick={() => setView("settings")} className="w-full">
+              {t("settings.about.back")}
+            </Button>
           </div>
         ) : view === "about" ? (
           <div className="space-y-5">
@@ -300,6 +308,16 @@ export function SettingsModal({
               onAiVoiceEnabledChange={onAiVoiceEnabledChange}
               onAutoAdvanceDialogueEnabledChange={onAutoAdvanceDialogueEnabledChange}
             />
+
+            <div className="rounded-lg border-2 border-[var(--border-color)] bg-[var(--bg-card)] p-3 flex items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-medium text-[var(--text-primary)]">{t("settings.connection.cardTitle")}</div>
+                <div className="text-xs text-[var(--text-muted)]">{t("settings.connection.cardDescription")}</div>
+              </div>
+              <Button type="button" variant="outline" onClick={() => setView("connection")}>
+                {t("settings.connection.open")}
+              </Button>
+            </div>
 
             <div className="rounded-lg border-2 border-[var(--border-color)] bg-[var(--bg-secondary)] p-3 space-y-3">
               <div>

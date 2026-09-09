@@ -6,23 +6,18 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 ```bash
 pnpm dev          # Start dev server (webpack mode) at localhost:3000
-pnpm build        # Production build (webpack mode)
-pnpm start        # Start production server
+pnpm build        # Static export (webpack mode) to ./out
 pnpm lint         # Run ESLint
+pnpm test:single-player-context  # 单人上下文回归
 ```
 
 > Note: The project explicitly uses `--webpack` flag (not Turbopack) for both dev and build.
 
-## Environment Setup
+## Environment
 
-Copy `.env.example` to `.env.local` and fill in:
-- `ZENMUX_API_KEY` — primary AI provider (ZenMux unified LLM gateway)
-- `MINIMAX_API_KEY` / `MINIMAX_GROUP_ID` — TTS voice synthesis
-- `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY` / `SUPABASE_SERVICE_ROLE_KEY` — auth & database
-- `DASHSCOPE_API_KEY` — Alibaba Cloud model support
-- `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` / `STRIPE_PRICE_ID` — payments
-- `NEXT_PUBLIC_WATCHA_CLIENT_ID` / `WATCHA_CLIENT_SECRET` — optional OAuth
-- `NEWAPI_API_KEY` / `NEWAPI_BASE_URL` — optional custom model endpoint
+纯前端版本不需要任何环境变量或自建服务端。AI 网关与 MiniMax 配置由
+玩家在应用内「模型/语音连接」填写，仅存 localStorage（见 `.env.example`）。
+`pnpm build` 产物是 `./out` 的纯静态文件，可直接交给 Capacitor/WebView/静态托管。
 
 ## Architecture Overview
 
@@ -54,41 +49,35 @@ Defined in `src/types/game.ts`. Night: `NIGHT_START → NIGHT_GUARD_ACTION → N
 
 ### AI Integration
 
-- All LLM calls go through the **`/api/chat`** route (`src/app/api/chat/route.ts`), which proxies to ZenMux, Dashscope, or a custom NewAPI endpoint based on the model's provider
-- Models are registered in `src/types/game.ts` as `ALL_MODELS` and `PROJECT_MODELS` (each as `ModelRef` with `provider`, `model`, optional `temperature`/`reasoning`)
+- 所有 LLM 调用由浏览器直连玩家配置的 **OpenAI 兼容网关**（`/chat/completions`）。
+  入口为 `src/lib/llm.ts` → `src/lib/llm-direct.ts`，未配置网关时开局入口会打开设置。
+- `ModelRef` 等模型展示数据只用于头像/人设，实际请求统一使用设置的网关模型。
 - Prompt construction per phase is handled by `GamePhase` subclasses via `getPrompt(context, player): PromptResult`
-- `src/lib/llm.ts` — low-level streaming fetch helper
+- `src/lib/llm.ts` — 流式/批处理/JSON 修复等公共能力
 - `src/lib/character-generator.ts` — generates AI player personas (MBTI, background, style); supports Genshin mode
-- `src/lib/ai-config.ts` — routing for GENERATOR / SUMMARY / REVIEW model roles
+- `src/lib/ai-config.ts` — 温度与场景配置
 
 ### Audio
 
 - `src/lib/audio-manager.ts` — `AudioManager` singleton; task-based sequential audio queue
 - `src/lib/narrator-audio-player.ts` — narrator TTS playback
 - `src/lib/narrator-voice.ts` — voice selection logic
-- `/api/tts` route — calls MiniMax TTS API for character speech synthesis
+- `src/lib/tts-direct.ts` — 可选 MiniMax 浏览器直连；未配置/失败时静默降级为字幕
 
 ### i18n
 
 `next-intl` with messages defined in `src/i18n/messages.ts`. Locale stored via `src/i18n/locale-store.ts`. The `src/i18n/translator.ts` provides `getI18n()` for use outside React components.
 
-### API Routes (`src/app/api/`)
+### 无服务端
 
-| Route | Purpose |
-|-------|---------|
-| `/api/chat` | LLM proxy (ZenMux / Dashscope / NewAPI) |
-| `/api/tts` | MiniMax TTS synthesis |
-| `/api/stt` | Speech-to-text |
-| `/api/credits/*` | Credit consumption, daily bonus, referral, redeem |
-| `/api/game-sessions` | Session tracking (Supabase) |
-| `/api/stripe/*` | Payment link & webhook |
-| `/api/auth/watcha/*` | Watcha OAuth2 callback |
+项目不再包含任何 API 路由、中间件或数据库。`src/lib/game-session-tracker.ts`
+是纯本地会话（仅用于存档恢复），自定义角色与游戏状态均存 localStorage。
 
 ### Key Conventions
 
 - **`FlowToken` pattern**: Before any async operation, capture `flowController.getToken()`. After `await`, call `token.isValid()` to abort if the flow was interrupted (e.g., game reset mid-speech).
 - **Phase prompt generation**: Add a new phase by creating/extending a `GamePhase` subclass in `src/game/phases/`, then register it in `PhaseManager`.
-- **Model routing**: Built-in models use ZenMux or Dashscope providers. Custom user API keys route through the NewAPI provider path. See `src/lib/api-keys.ts` for key resolution.
+- **Model routing**: 浏览器直连 OpenAI 兼容网关；Key/地址/模型在 `src/lib/api-keys.ts`。
 - Uses **pnpm** as package manager.
 
 ### 单人上下文修改规范

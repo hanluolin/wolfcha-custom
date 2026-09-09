@@ -43,6 +43,32 @@ for (const phase of decisions) {
 }
 
 test("警徽 PK 临时切换为自爆提示词，仍不能提前得知刀口结果；公布后才可知", async () => {
+  const originalWindow = globalThis.window;
+  const originalLocalStorage = globalThis.localStorage;
+  const storageValues = new Map<string, string>();
+  const mockStorage: Storage = {
+    get length() { return storageValues.size; },
+    clear: () => storageValues.clear(),
+    getItem: (key) => storageValues.get(key) ?? null,
+    key: (index) => Array.from(storageValues.keys())[index] ?? null,
+    removeItem: (key) => { storageValues.delete(key); },
+    setItem: (key, value) => { storageValues.set(key, String(value)); },
+  };
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: {
+      localStorage: mockStorage,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      dispatchEvent: () => true,
+    },
+  });
+  Object.defineProperty(globalThis, "localStorage", { configurable: true, value: mockStorage });
+  const apiKeys = await import("@/lib/api-keys");
+  apiKeys.setOpenAIBaseUrl("http://local.test/v1");
+  apiKeys.setOpenAIApiKey("test-key");
+  apiKeys.setOpenAIModel("test-model");
+
   const { generateWhiteWolfKingBoomDecision } = await import("@/lib/game-master");
   const state = fresh("DAY_PK_SPEECH");
   state.pkSource = "badge";
@@ -52,7 +78,7 @@ test("警徽 PK 临时切换为自爆提示词，仍不能提前得知刀口结�
   let prompt = "";
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (input, init) => {
-    if (String(input) === "/api/demo-config") return Response.json({ active: false, enabled: false });
+    if (!String(input).endsWith("/chat/completions")) throw new Error(`unexpected ${String(input)}`);
     prompt = String(init?.body);
     return Response.json({ id: "test", choices: [{ message: { role: "assistant", content: '{"action":"pass"}' }, finish_reason: "stop" }] });
   };
@@ -64,7 +90,13 @@ test("警徽 PK 临时切换为自爆提示词，仍不能提前得知刀口结�
     state.nightHistory[1].resultsAnnounced = true;
     await generateWhiteWolfKingBoomDecision(state, actor);
     assert.match(prompt, /目标当晚出局/);
-  } finally { globalThis.fetch = originalFetch; }
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalWindow === undefined) Reflect.deleteProperty(globalThis, "window");
+    else Object.defineProperty(globalThis, "window", { configurable: true, value: originalWindow });
+    if (originalLocalStorage === undefined) Reflect.deleteProperty(globalThis, "localStorage");
+    else Object.defineProperty(globalThis, "localStorage", { configurable: true, value: originalLocalStorage });
+  }
 });
 
 test("守卫保留每夜路线，结果按当夜公开结算判断，普通村民看不到守护记录", () => {

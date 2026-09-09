@@ -207,6 +207,13 @@
   "settings": {
     "title": "设置",
     "description": "调整偏好并导出日志",
+    "connection": {
+      "title": "模型与语音连接",
+      "description": "配置 LLM 网关与可选语音",
+      "cardTitle": "模型/语音连接",
+      "cardDescription": "LLM 网关与 MiniMax 语音配置保存在本机",
+      "open": "打开"
+    },
     "about": {
       "title": "关于我们",
       "description": "了解 Wolfcha",
@@ -2129,6 +2136,12 @@
     "zenmux401": "ZenMux 401 Unauthorized",
     "requestFailed": "请求失败",
     "errorOccurred": "出错了: {error}",
+    "characterRetry": {
+      "title": "角色生成遇到问题",
+      "description": "第 {batch} 批中有角色生成失败（第 {attempt} 次尝试）。是否重试这一批？",
+      "retry": "重试该批",
+      "cancel": "取消开局"
+    },
     "guardNoRepeat": "守卫不能连续两晚守护同一人",
     "youProtected": "你保护了 {seat}号 {name}",
     "youVotedAttack": "你投票选择袭击 {seat}号 {name}，等待队友投票...",
@@ -2153,6 +2166,41 @@
   "customKey": {
     "title": "用我自己的 key 玩",
     "description": "开启后填写 API Key，仅保存在本地浏览器",
+    "openai": {
+      "title": "OpenAI 兼容网关",
+      "description": "填写你自有的 LLM 网关（任意 OpenAI 兼容 API 地址）。启用后角色生成、玩家发言、夜间总结与复盘将全部使用该模型，无需再配置其它服务商与登录。",
+      "enabled": "已启用",
+      "baseUrl": "API 地址",
+      "baseUrlPlaceholder": "https://api.example.com/v1",
+      "apiKey": "API Key",
+      "apiKeyPlaceholder": "sk-...",
+      "model": "模型名称",
+      "modelPlaceholder": "例如 deepseek-v3.2 / glm-4.7",
+      "thinking": "开启思考",
+      "thinkingDesc": "关闭可降低延迟与消耗；开启后按下方深度发送 reasoning_effort",
+      "effort": "思考深度",
+      "effortMinimal": "minimal（极简）",
+      "effortLow": "low（低）",
+      "effortMedium": "medium（中）",
+      "effortHigh": "high（高）",
+      "effortMax": "max（最大）",
+      "effortHint": "思考深度仅在支持 reasoning_effort 的模型/网关上生效。",
+      "style": "思考参数格式",
+      "styleAuto": "自动（优先 thinking 对象）",
+      "styleThinking": "thinking 对象（Kimi/GLM/火山等）",
+      "styleReasoning": "reasoning_effort（OpenAI 标准）",
+      "styleDesc": "默认发送 thinking；只有使用 OpenAI 标准 reasoning_effort 的网关才需要改成后者。",
+      "jsonObject": "启用 json_object 输出",
+      "jsonObjectDesc": "向模型声明输出 JSON 对象，结果更稳定。若你的模型/网关不支持该参数导致报错，请关闭此项。",
+      "proxy": "经本服务代理转发",
+      "proxyDesc": "默认浏览器直连（纯前端，无需后端）。仅当你在本地运行服务端、且网关不允许浏览器 CORS 时打开此项，由服务端代为转发。",
+      "howToEnable": "三项填齐并点击下方「保存」即启用；启用后上方其它服务商与模型选择不再生效。",
+      "activeNote": "正在使用此网关，所有 AI 已统一到该模型。修改后重新保存即生效；想换回内置服务商请点「清除」。",
+      "showKey": "显示 API Key",
+      "hideKey": "隐藏 API Key",
+      "entryAction": "配置 LLM 网关",
+      "connected": "LLM: {model}"
+    },
     "dailyBonus": "活动暂不可用。",
     "springCampaign": {
       "active": "活动暂不可用。",

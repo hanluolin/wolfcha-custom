@@ -5,14 +5,9 @@
   "scripts": {
     "dev": "next dev --webpack",
     "build": "next build --webpack",
-    "start": "next start",
-    "test:single-player-context": "tsx --test src/lib/ai-logger.test.ts src/lib/character-generator-tokenpay.test.ts src/lib/character-generator-structured-output.test.ts src/lib/tokenpay-client.test.ts src/lib/game-master.badge-signup.test.ts src/lib/game-master.player-setup.test.ts src/lib/game-master.stream-logging.test.ts src/lib/game-master.structured-output.test.ts src/lib/game-master.vote-history.test.ts src/lib/hunter-badge-flow.test.ts src/lib/speech-order.test.ts src/game/phases/factual-context.test.ts scripts/single-player-context-audit.test.ts src/lib/prompt-utils.test.ts src/hooks/useDialogueManager.test.ts src/lib/streaming-speech-parser.test.ts src/hooks/game-phases/useDayPhase.test.ts src/game/phases/context-regressions.test.ts src/lib/audio-manager.test.ts src/hooks/game-phases/useBadgePhase.test.ts src/store/game-machine.test.ts src/game/phases/vote-resume.test.ts",
+    "test:single-player-context": "tsx --test src/lib/ai-logger.test.ts src/lib/character-generator-structured-output.test.ts src/lib/llm-direct-thinking.test.ts src/lib/game-master.badge-signup.test.ts src/lib/game-master.player-setup.test.ts src/lib/game-master.stream-logging.test.ts src/lib/game-master.structured-output.test.ts src/lib/game-master.vote-history.test.ts src/lib/hunter-badge-flow.test.ts src/lib/speech-order.test.ts src/game/phases/factual-context.test.ts scripts/single-player-context-audit.test.ts src/lib/prompt-utils.test.ts src/hooks/useDialogueManager.test.ts src/lib/streaming-speech-parser.test.ts src/hooks/game-phases/useDayPhase.test.ts src/game/phases/context-regressions.test.ts src/lib/audio-manager.test.ts src/hooks/game-phases/useBadgePhase.test.ts src/store/game-machine.test.ts src/game/phases/vote-resume.test.ts",
     "audit:single-player-context": "tsx scripts/single-player-context-audit.ts",
-    "audit:single-player-context:live": "node --env-file=.env.local --import tsx scripts/live-single-player-context-audit.ts",
-    "audit:character-generation:live": "node --env-file=.env.local --import tsx scripts/live-character-generation-audit.ts",
-    "lint": "eslint",
-    "test:tokenpay": "NODE_OPTIONS=--conditions=react-server tsx --test server/tokenpay-*.test.ts",
-    "migrate:game-sessions-user-id": "node scripts/migrate-game-sessions-user-id.mjs"
+    "lint": "eslint"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
@@ -24,14 +19,10 @@
     "@radix-ui/react-slot": "^1.2.4",
     "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-tooltip": "^1.2.8",
-    "@supabase/auth-ui-react": "^0.4.7",
-    "@supabase/auth-ui-shared": "^0.1.8",
-    "@supabase/supabase-js": "^2.90.1",
     "@tiptap/extension-mention": "^3.15.3",
     "@tiptap/react": "^3.15.3",
     "@tiptap/starter-kit": "^3.15.3",
     "@tiptap/suggestion": "^3.15.3",
-    "@vercel/analytics": "^1.6.1",
     "ahooks": "^3.9.6",
     "ai-json-fixer": "^0.2.0",
     "class-variance-authority": "^0.7.1",
@@ -47,12 +38,9 @@
     "react-dom": "19.2.3",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
-    "server-only": "^0.0.1",
     "sonner": "^2.0.7",
     "streamdown": "^1.6.10",
-    "stripe": "^20.2.0",
     "tailwind-merge": "^3.4.0",
-    "undici": "^7.19.1",
     "uuid": "^13.0.0"
   },
   "devDependencies": {

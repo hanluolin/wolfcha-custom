@@ -1,92 +1,35 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Wolfcha 工程指引（与 `AGENTS.md` 同步，纯前端版）。
 
 ## Commands
 
 ```bash
-pnpm dev          # Start dev server (webpack mode) at localhost:3000
-pnpm build        # Production build (webpack mode)
-pnpm start        # Start production server
-pnpm lint         # Run ESLint
+pnpm dev          # 本地开发（webpack 模式）
+pnpm build        # 静态导出到 ./out
+pnpm lint         # ESLint
+pnpm test:single-player-context  # 单人上下文回归
 ```
 
-> Note: The project explicitly uses `--webpack` flag (not Turbopack) for both dev and build.
+## Environment
 
-## Environment Setup
-
-Copy `.env.example` to `.env.local` and fill in:
-- `ZENMUX_API_KEY` — primary AI provider (ZenMux unified LLM gateway)
-- `MINIMAX_API_KEY` / `MINIMAX_GROUP_ID` — TTS voice synthesis
-- `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY` / `SUPABASE_SERVICE_ROLE_KEY` — auth & database
-- `DASHSCOPE_API_KEY` — Alibaba Cloud model support
-- `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` / `STRIPE_PRICE_ID` — payments
-- `NEXT_PUBLIC_WATCHA_CLIENT_ID` / `WATCHA_CLIENT_SECRET` — optional OAuth
-- `NEWAPI_API_KEY` / `NEWAPI_BASE_URL` — optional custom model endpoint
+纯前端版本无需任何自建服务端或环境变量。玩家在应用内「模型/语音连接」
+填写 OpenAI 兼容网关（地址/Key/模型）与可选的 MiniMax Key；所有配置
+只保存在本机 localStorage。`./out` 可直接交给 Capacitor / WebView / 静态托管。
 
 ## Architecture Overview
 
-Wolfcha is an AI-powered Werewolf (社交推理) game built with **Next.js 16 App Router**. Every non-human player is controlled by an LLM, with the player competing against AI characters.
+Wolfcha 是基于 **Next.js 16 App Router（纯前端静态导出）** 的 AI 狼人杀：
+每名非真人玩家由 LLM 控制。
 
-### State Management
+- 游戏状态：`src/store/game-machine.ts`（localStorage 断点恢复）
+- 纯逻辑：`src/lib/game-master.ts`、`src/game/core/PhaseManager.ts`、`src/game/phases/`
+- 协调层：`src/hooks/useGameLogic.ts` 及 `src/hooks/game-phases/`
+- AI：`src/lib/llm.ts` → `src/lib/llm-direct.ts` 浏览器直连 OpenAI 兼容网关
+- 语音：`src/lib/tts-direct.ts` 可选 MiniMax 直连；旁白为本地 `public/audio/narrator`
+- 自定义角色：localStorage（`src/hooks/useCustomCharacters.ts`）
+- 会话：`src/lib/game-session-tracker.ts` 纯本地，仅作存档身份
 
-Game state is managed with **Jotai atoms** (`src/store/game-machine.ts`):
-- `gameStateAtom` — the single source of truth for all game state, persisted to `localStorage` (24h TTL) for page refresh recovery
-- `src/store/settings.ts` — user settings atom
+没有 `src/app/api/`、没有 Supabase、没有登录/积分/支付。
 
-### Game Logic Layer
-
-The game logic is split across several layers:
-
-| Layer | Location | Responsibility |
-|-------|----------|----------------|
-| Game Master | `src/lib/game-master.ts` | Pure functions: player setup, phase transitions, win condition checks, kill resolution |
-| Flow Controller | `src/lib/game-flow-controller.ts` | `AsyncFlowController` — interrupt/pause/resume async game flows; `FlowToken` pattern prevents stale callbacks |
-| Phase Manager | `src/game/core/PhaseManager.ts` | Maps each `Phase` enum value to a `GamePhase` class that generates LLM prompts |
-| Game Phases (classes) | `src/game/phases/` | `NightPhase`, `DaySpeechPhase`, `VotePhase`, `BadgePhase`, `HunterPhase`, `WhiteWolfKingBoomPhase` |
-| Game Logic Hook | `src/hooks/useGameLogic.ts` | React hook that orchestrates the full game loop; delegates to sub-hooks |
-| Phase Sub-hooks | `src/hooks/game-phases/` | `useDayPhase`, `useBadgePhase`, `useSpecialEvents` |
-| Dialogue Manager | `src/hooks/useDialogueManager.ts` | Streaming AI speech management, typewriter effect |
-
-### Game Phases (type `Phase`)
-
-Defined in `src/types/game.ts`. Night: `NIGHT_START → NIGHT_GUARD_ACTION → NIGHT_WOLF_ACTION → NIGHT_WITCH_ACTION → NIGHT_SEER_ACTION → NIGHT_RESOLVE`. Day: `DAY_START → DAY_BADGE_SIGNUP → DAY_BADGE_SPEECH → DAY_BADGE_ELECTION → DAY_SPEECH → DAY_VOTE → DAY_RESOLVE`. Special: `HUNTER_SHOOT`, `WHITE_WOLF_KING_BOOM`, `BADGE_TRANSFER`, `GAME_END`.
-
-### AI Integration
-
-- All LLM calls go through the **`/api/chat`** route (`src/app/api/chat/route.ts`), which proxies to ZenMux, Dashscope, or a custom NewAPI endpoint based on the model's provider
-- Models are registered in `src/types/game.ts` as `ALL_MODELS` and `PROJECT_MODELS` (each as `ModelRef` with `provider`, `model`, optional `temperature`/`reasoning`)
-- Prompt construction per phase is handled by `GamePhase` subclasses via `getPrompt(context, player): PromptResult`
-- `src/lib/llm.ts` — low-level streaming fetch helper
-- `src/lib/character-generator.ts` — generates AI player personas (MBTI, background, style); supports Genshin mode
-- `src/lib/ai-config.ts` — routing for GENERATOR / SUMMARY / REVIEW model roles
-
-### Audio
-
-- `src/lib/audio-manager.ts` — `AudioManager` singleton; task-based sequential audio queue
-- `src/lib/narrator-audio-player.ts` — narrator TTS playback
-- `src/lib/narrator-voice.ts` — voice selection logic
-- `/api/tts` route — calls MiniMax TTS API for character speech synthesis
-
-### i18n
-
-`next-intl` with messages defined in `src/i18n/messages.ts`. Locale stored via `src/i18n/locale-store.ts`. The `src/i18n/translator.ts` provides `getI18n()` for use outside React components.
-
-### API Routes (`src/app/api/`)
-
-| Route | Purpose |
-|-------|---------|
-| `/api/chat` | LLM proxy (ZenMux / Dashscope / NewAPI) |
-| `/api/tts` | MiniMax TTS synthesis |
-| `/api/stt` | Speech-to-text |
-| `/api/credits/*` | Credit consumption, daily bonus, referral, redeem |
-| `/api/game-sessions` | Session tracking (Supabase) |
-| `/api/stripe/*` | Payment link & webhook |
-| `/api/auth/watcha/*` | Watcha OAuth2 callback |
-
-### Key Conventions
-
-- **`FlowToken` pattern**: Before any async operation, capture `flowController.getToken()`. After `await`, call `token.isValid()` to abort if the flow was interrupted (e.g., game reset mid-speech).
-- **Phase prompt generation**: Add a new phase by creating/extending a `GamePhase` subclass in `src/game/phases/`, then register it in `PhaseManager`.
-- **Model routing**: Built-in models use ZenMux or Dashscope providers. Custom user API keys route through the NewAPI provider path. See `src/lib/api-keys.ts` for key resolution.
-- Uses **pnpm** as package manager.
+单人上下文修改规范及提交前检查，见 `AGENTS.md` 与 `docs/单人上下文约束.md`。

@@ -23,6 +23,7 @@ import { DEFAULT_VOICE_ID, resolveVoiceId, VOICE_PRESETS, ENGLISH_VOICE_PRESETS,
 import { getLocale } from "@/i18n/locale-store";
 import { aiLogger } from "@/lib/ai-logger";
 import { useGameAnalysis } from "@/hooks/useGameAnalysis";
+import { synthesizeSpeech } from "@/lib/tts-direct";
 
 type AILogEntry = {
   id: string;
@@ -159,30 +160,10 @@ function TTSTab() {
     }
 
     try {
-      const res = await fetch("/api/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, voiceId }),
-      });
-
-      setStatus(res.status);
-      const ct = res.headers.get("content-type") || "";
-      setContentType(ct);
-
-      const ab = await res.arrayBuffer();
-      setByteLength(ab.byteLength);
-      const isJson = ct.includes("application/json") || ct.includes("text/");
-
-      if (!res.ok || isJson) {
-        const txt = new TextDecoder().decode(new Uint8Array(ab));
-        setBodyPreview(txt.slice(0, 2000));
-        if (!res.ok) {
-          setError(`HTTP ${res.status}`);
-        }
-        return;
-      }
-
-      const blob = new Blob([ab], { type: ct || "audio/mpeg" });
+      const blob = await synthesizeSpeech(text, voiceId);
+      setStatus(200);
+      setContentType(blob.type || "audio/mpeg");
+      setByteLength(blob.size);
       const url = URL.createObjectURL(blob);
       setAudioObjectUrl(url);
     } catch (e) {

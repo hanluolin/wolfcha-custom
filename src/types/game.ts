@@ -66,8 +66,10 @@ export type Alignment = "village" | "wolf";
    rolesHint: string;
  }
 
+export type ModelProvider = "zenmux" | "dashscope" | "tokendance" | "openai";
+
 export interface ModelRef {
-  provider: "zenmux" | "dashscope" | "tokendance";
+  provider: ModelProvider;
   model: string;
   /** Override call-time temperature for this model (e.g. some models only support 1) */
   temperature?: number;

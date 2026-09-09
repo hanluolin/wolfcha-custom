@@ -51,23 +51,28 @@ Wolfcha 诞生于 **观猹 × 魔搭环球黑客松**。名字由 **Wolf（狼�
 git clone https://github.com/oil-oil/wolfcha.git
 cd wolfcha
 pnpm install
-cp .env.example .env.local
 pnpm dev
 ```
 
-打开 [http://localhost:3000](http://localhost:3000)。在 `.env.local` 中配置需要使用的服务，完整变量说明见 [`.env.example`](./.env.example)。
+打开 [http://localhost:3000](http://localhost:3000)，点击「配置 LLM 网关」填写自己的
+OpenAI 兼容 API 地址、Key 与模型名即可开局。游戏在浏览器内直连模型，无需登录、
+积分或自建服务端。
+
+打包纯静态 APK 前运行：
+
+```bash
+pnpm build
+# 静态文件输出到 ./out
+```
 
 ## 技术栈
 
 [Next.js 16](https://nextjs.org/) · [TypeScript](https://www.typescriptlang.org/) · [Tailwind CSS 4](https://tailwindcss.com/) · [Jotai](https://jotai.org/) · [Radix UI](https://www.radix-ui.com/) · [Framer Motion](https://www.framer.com/motion/) · [Tiptap](https://tiptap.dev/)
 
-## 感谢赞助
+## 无服务端
 
-![TokenDance](public/sponsor/tokendance.svg)
-
-- [TokenDance](https://tokendance.space/) — 提供核心游戏流程、角色扮演和总结能力
-- [百炼 DashScope](https://bailian.console.aliyun.com/) — 提供 AI 能力支持
-- [观猹](https://watcha.cn/) — 提供 AI 能力与展示平台支持
+Wolfcha 是纯前端应用：LLM 调用由浏览器直连你配置的 OpenAI 兼容网关，可选的
+MiniMax 语音也由浏览器直连。对局存档、自定义角色与设置均保存在本机。
 
 ## 后续计划
 

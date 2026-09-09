@@ -51,23 +51,28 @@ Requirements: Node.js and [pnpm](https://pnpm.io/).
 git clone https://github.com/oil-oil/wolfcha.git
 cd wolfcha
 pnpm install
-cp .env.example .env.local
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Configure the providers you need in `.env.local`; the available variables are documented in [`.env.example`](./.env.example).
+Open [http://localhost:3000](http://localhost:3000). Click **Configure LLM gateway** and enter your own OpenAI-compatible API URL, key, and model. Everything runs in the browser — no accounts, credits, or backend server.
+
+To package a static build (e.g. for a Capacitor/WebView APK):
+
+```bash
+pnpm build
+# Static files are emitted to ./out
+```
 
 ## Tech stack
 
 [Next.js 16](https://nextjs.org/) · [TypeScript](https://www.typescriptlang.org/) · [Tailwind CSS 4](https://tailwindcss.com/) · [Jotai](https://jotai.org/) · [Radix UI](https://www.radix-ui.com/) · [Framer Motion](https://www.framer.com/motion/) · [Tiptap](https://tiptap.dev/)
 
-## Sponsors
+## No backend
 
-![TokenDance](public/sponsor/tokendance.svg)
-
-- [TokenDance](https://tokendance.space/) — core game flow, roleplay, and summaries
-- [DashScope](https://bailian.console.aliyun.com/) — AI capability support
-- [Watcha](https://watcha.cn/) — AI capability and showcase platform support
+Wolfcha is a pure front-end app. LLM calls go straight from your browser to the
+OpenAI-compatible gateway you configure; optional MiniMax TTS calls are also
+made directly from the browser. Game progress, custom characters, and settings
+are stored locally on the device.
 
 ## Roadmap
 

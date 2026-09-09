@@ -8,15 +8,11 @@
   </p>
 </div>
 
-## 🙏 Sponsors
+## 🧩 Pure Frontend
 
-![TokenDance Banner](public/sponsor/tokendance.svg)
-
-Current sponsors:
-
-*   [TokenDance](https://tokendance.space/) - Powers the core game flow, roleplay, and summary features
-*   [Dashscope](https://bailian.console.aliyun.com/) - Provides AI capability support
-*   [Watcha](https://watcha.cn/) - Provides AI capability and showcase platform support
+No backend is required. In the app, click **Configure LLM gateway** and enter your
+own OpenAI-compatible API URL, key, and model. Optional MiniMax TTS is also called
+directly from the browser. Game state, custom characters, and settings stay local.
 
 ---
 
@@ -75,7 +71,7 @@ Built with modern web technologies:
 *   **Editor**: [Tiptap](https://tiptap.dev/) (For rich text interactions)
 *   **Animations**: [Framer Motion](https://www.framer.com/motion/)
 *   **Avatar Generation**: [DiceBear](https://www.dicebear.com/) (Notionists style)
-*   **AI Integration**: [TokenDance](https://tokendance.space/) (Unified interface for LLMs)
+*   **AI Integration**: Browser-direct calls to your own OpenAI-compatible LLM gateway
 
 ## 🚀 Local Development
 
@@ -98,17 +94,15 @@ pnpm install
 npm install
 ```
 
-3.  **Configure environment variables**
-
-You'll need to set up API keys (TokenDance, etc.) for full functionality. Refer to `.env.example` and create your `.env.local`.
-
-4.  **Start the development server**
+3.  **Start the development server**
 
 ```bash
 pnpm dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+For a static export (e.g. Capacitor / WebView APK): `pnpm build` emits `./out`.
 
 ## 📄 License
 

@@ -6,15 +6,11 @@ import type { NextConfig } from "next";
 const pkg = require("./package.json") as { version?: string };
 
 const nextConfig: NextConfig = {
-  // Note: Removed 'output: "standalone"' - not needed for Vercel deployment
-  // standalone mode is for Docker/self-hosted environments and makes deploy much larger
+  // 纯前端产物：适合静态托管 / Capacitor / WebView APK，无任何服务端运行期依赖。
+  output: "export",
   reactCompiler: true,
-  async rewrites() {
-    return [
-      { source: "/zh", destination: "/" },
-      { source: "/zh/", destination: "/" },
-      { source: "/zh/:path*", destination: "/:path*" },
-    ];
+  images: {
+    unoptimized: true,
   },
   env: {
     NEXT_PUBLIC_APP_VERSION: pkg.version ?? "0.0.0",

@@ -1,11 +1,8 @@
 import type { Metadata } from "next";
-import { cookies, headers } from "next/headers";
-import Script from "next/script";
 import "./globals.css";
 import { Toaster } from "sonner";
-import { Analytics } from "@vercel/analytics/next"
 import { I18nProvider } from "@/i18n/I18nProvider";
-import { STORAGE_KEY, defaultLocale, isSupportedLocale, localeToHtmlLang, type AppLocale } from "@/i18n/config";
+import { defaultLocale, localeToHtmlLang } from "@/i18n/config";
 import { getMessages } from "@/i18n/messages";
 import { JsonLd, getGameJsonLd, getWebsiteJsonLd, getOrganizationJsonLd } from "@/components/seo/JsonLd";
 
@@ -93,46 +90,20 @@ export const metadata: Metadata = {
   },
 };
 
-function resolveInitialLocale(pathname: string | null, cookieLocale: string | undefined): AppLocale {
-  if (pathname && /^\/zh(\/|$)/.test(pathname)) return "zh";
-  if (isSupportedLocale(cookieLocale)) return cookieLocale;
-  return defaultLocale;
-}
-
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const requestHeaders = await headers();
-  const cookieStore = await cookies();
-  const initialLocale = resolveInitialLocale(
-    requestHeaders.get("x-wolfcha-pathname"),
-    cookieStore.get(STORAGE_KEY)?.value
-  );
-
   return (
-    <html lang={localeToHtmlLang[initialLocale]} suppressHydrationWarning>
-      <Analytics />
+    <html lang={localeToHtmlLang[defaultLocale]} suppressHydrationWarning>
       <head>
-        <Script
-          src="https://www.googletagmanager.com/gtag/js?id=G-3SSRH8KPLY"
-          strategy="afterInteractive"
-        />
-        <Script id="ga-init" strategy="afterInteractive">
-          {`
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            gtag('config', 'G-3SSRH8KPLY');
-          `}
-        </Script>
       </head>
       <body className="antialiased">
         <JsonLd data={getWebsiteJsonLd()} />
         <JsonLd data={getGameJsonLd()} />
         <JsonLd data={getOrganizationJsonLd()} />
-        <I18nProvider initialLocale={initialLocale}>
+        <I18nProvider>
           <Toaster position="top-center" closeButton />
           {children}
         </I18nProvider>

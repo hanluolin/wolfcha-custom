@@ -37,7 +37,49 @@ const makePlayer = (playerId: string, seat: number, model: string): Player => ({
   },
 });
 
+const installLocalGatewayEnv = async () => {
+  const originalWindow = globalThis.window;
+  const originalLocalStorage = globalThis.localStorage;
+  const storage = new Map<string, string>();
+  const mockStorage: Storage = {
+    get length() { return storage.size; },
+    clear: () => storage.clear(),
+    getItem: (key) => storage.get(key) ?? null,
+    key: (index) => Array.from(storage.keys())[index] ?? null,
+    removeItem: (key) => { storage.delete(key); },
+    setItem: (key, value) => { storage.set(key, String(value)); },
+  };
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: {
+      localStorage: mockStorage,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      dispatchEvent: () => true,
+    },
+  });
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: mockStorage,
+  });
+  const keys = await import("@/lib/api-keys");
+  keys.setOpenAIBaseUrl("http://local.test/v1");
+  keys.setOpenAIApiKey("test-key");
+  keys.setOpenAIModel("test-model");
+  keys.setOpenAIJsonObjectEnabled(true);
+  return () => {
+    if (originalWindow === undefined) Reflect.deleteProperty(globalThis, "window");
+    else Object.defineProperty(globalThis, "window", { configurable: true, value: originalWindow });
+    if (originalLocalStorage === undefined) Reflect.deleteProperty(globalThis, "localStorage");
+    else Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: originalLocalStorage,
+    });
+  };
+};
+
 test("不支持严格 Schema 的玩家模型降级为 json_object，非法动作只调用一次", async () => {
+  const restoreEnv = await installLocalGatewayEnv();
   const { createInitialGameState, generateAIVote, AI_VOTE_ABSTAIN } = await import("./game-master");
   const voter = makePlayer("voter", 0, "qwen3-max");
   const target = makePlayer("target", 1, "qwen3-max");
@@ -54,9 +96,7 @@ test("不支持严格 Schema 的玩家模型降级为 json_object，非法动作
   }> = [];
 
   globalThis.fetch = async (input, init) => {
-    if (requestUrl(input) === "/api/demo-config") {
-      return Response.json({ active: false, enabled: false });
-    }
+    if (!requestUrl(input).endsWith("/chat/completions")) throw new Error(`unexpected ${requestUrl(input)}`);
     requestBodies.push(JSON.parse(String(init?.body)));
     return completionResponse("not-json");
   };
@@ -68,10 +108,12 @@ test("不支持严格 Schema 的玩家模型降级为 json_object，非法动作
     assert.equal(result.seat, AI_VOTE_ABSTAIN);
   } finally {
     globalThis.fetch = originalFetch;
+    restoreEnv();
   }
 });
 
 test("空日总结不会保存原始 JSON，也不会触发第二次模型调用", async () => {
+  const restoreEnv = await installLocalGatewayEnv();
   const [{ createInitialGameState, generateDailySummary }, { getI18n }] = await Promise.all([
     import("./game-master"),
     import("@/i18n/translator"),
@@ -97,9 +139,7 @@ test("空日总结不会保存原始 JSON，也不会触发第二次模型调用
     messages?: Array<{ role?: string; content?: string | unknown[] }>;
   }> = [];
   globalThis.fetch = async (input, init) => {
-    if (requestUrl(input) === "/api/demo-config") {
-      return Response.json({ active: false, enabled: false });
-    }
+    if (!requestUrl(input).endsWith("/chat/completions")) throw new Error(`unexpected ${requestUrl(input)}`);
     requestBodies.push(JSON.parse(String(init?.body)));
     return completionResponse('{"bullets":[]}');
   };
@@ -107,7 +147,7 @@ test("空日总结不会保存原始 JSON，也不会触发第二次模型调用
   try {
     const result = await generateDailySummary(state);
     assert.equal(requestBodies.length, 1);
-    assert.equal(requestBodies[0].response_format?.type, "json_schema");
+    assert.equal(requestBodies[0].response_format?.type, "json_object");
     const systemPrompt = requestBodies[0].messages?.find((message) => message.role === "system")?.content;
     assert.equal(typeof systemPrompt, "string");
     assert.match(String(systemPrompt), /当天未竞选就只写‘当天无警长竞选’/);
@@ -115,17 +155,17 @@ test("空日总结不会保存原始 JSON，也不会触发第二次模型调用
     assert.deepEqual(result.bullets, []);
   } finally {
     globalThis.fetch = originalFetch;
+    restoreEnv();
   }
 });
 
 test("通用 JSON 解析失败时不静默重放付费请求", async () => {
+  const restoreEnv = await installLocalGatewayEnv();
   const { generateJSON } = await import("./llm");
   const originalFetch = globalThis.fetch;
   let calls = 0;
   globalThis.fetch = async (input) => {
-    if (requestUrl(input) === "/api/demo-config") {
-      return Response.json({ active: false, enabled: false });
-    }
+    if (!requestUrl(input).endsWith("/chat/completions")) throw new Error(`unexpected ${requestUrl(input)}`);
     calls += 1;
     return completionResponse("not-json");
   };
@@ -138,5 +178,6 @@ test("通用 JSON 解析失败时不静默重放付费请求", async () => {
     assert.equal(calls, 1);
   } finally {
     globalThis.fetch = originalFetch;
+    restoreEnv();
   }
 });

@@ -1,9 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-process.env.NEXT_PUBLIC_SUPABASE_URL ||= "https://example.supabase.co";
-process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ||= "test-publishable-key";
-
 class MemoryStorage implements Storage {
   private readonly values = new Map<string, string>();
   get length() { return this.values.size; }
@@ -14,13 +11,11 @@ class MemoryStorage implements Storage {
   setItem(key: string, value: string) { this.values.set(key, String(value)); }
 }
 
-test("TokenPay 角色生成使用严格结构且每个阶段只调用一次", async () => {
-  const { supabase } = await import("@/lib/supabase");
-  const originalGetSession = supabase.auth.getSession.bind(supabase.auth);
-  const originalFetch = globalThis.fetch;
+test("直连 OpenAI 兼容网关时角色生成使用严格结构且每个阶段只调用一次", async () => {
+  const storage = new MemoryStorage();
   const originalWindow = globalThis.window;
   const originalLocalStorage = globalThis.localStorage;
-  const storage = new MemoryStorage();
+  const originalFetch = globalThis.fetch;
   const mockWindow = {
     localStorage: storage,
     addEventListener: () => undefined,
@@ -29,20 +24,17 @@ test("TokenPay 角色生成使用严格结构且每个阶段只调用一次", as
   };
   Object.defineProperty(globalThis, "window", { configurable: true, value: mockWindow });
   Object.defineProperty(globalThis, "localStorage", { configurable: true, value: storage });
-  Object.defineProperty(supabase.auth, "getSession", {
-    configurable: true,
-    value: async () => ({
-      data: { session: { access_token: "test-access-token", user: { id: "user-1" } } },
-      error: null,
-    }),
-  });
 
-  const { setModelSource, setTokenPayConnected } = await import("@/lib/api-keys");
-  setTokenPayConnected(true);
-  setModelSource("tokenpay");
+  const { setOpenAIBaseUrl, setOpenAIApiKey, setOpenAIModel, setOpenAIJsonObjectEnabled } =
+    await import("@/lib/api-keys");
+  setOpenAIBaseUrl("https://example.openai.com/v1");
+  setOpenAIApiKey("test-key");
+  setOpenAIModel("test-model");
+  setOpenAIJsonObjectEnabled(true);
 
   let baseCalls = 0;
   let personaCalls = 0;
+  const requestUrls: string[] = [];
   const responseFormats: unknown[] = [];
   const validProfile = {
     displayName: "林川",
@@ -74,7 +66,8 @@ test("TokenPay 角色生成使用严格结构且每个阶段只调用一次", as
     },
   };
 
-  globalThis.fetch = async (_input, init) => {
+  globalThis.fetch = async (input, init) => {
+    requestUrls.push(typeof input === "string" ? input : String(input));
     const body = JSON.parse(String(init?.body ?? "{}")) as {
       stream?: boolean;
       response_format?: unknown;
@@ -89,7 +82,6 @@ test("TokenPay 角色生成使用严格结构且每个阶段只调用一次", as
         }],
       });
     }
-
     personaCalls += 1;
     const frame = JSON.stringify({
       choices: [{ delta: { content: JSON.stringify({ characters: [character] }) } }],
@@ -111,13 +103,13 @@ test("TokenPay 角色生成使用严格结构且每个阶段只调用一次", as
 
     assert.equal(baseCalls, 1);
     assert.equal(personaCalls, 1);
+    assert.equal(requestUrls.length, 2);
+    for (const url of requestUrls) {
+      assert.equal(url, "https://example.openai.com/v1/chat/completions");
+    }
     assert.equal(responseFormats.length, 2);
     for (const format of responseFormats) {
-      assert.equal((format as { type?: string })?.type, "json_schema");
-      assert.equal(
-        (format as { json_schema?: { strict?: boolean } })?.json_schema?.strict,
-        true,
-      );
+      assert.equal((format as { type?: string })?.type, "json_object");
     }
     assert.equal(baseProfileEmits, 1);
     assert.equal(characterEmits, 1);
@@ -125,10 +117,6 @@ test("TokenPay 角色生成使用严格结构且每个阶段只调用一次", as
     assert.equal(result[0].displayName, "林川");
   } finally {
     globalThis.fetch = originalFetch;
-    Object.defineProperty(supabase.auth, "getSession", {
-      configurable: true,
-      value: originalGetSession,
-    });
     if (originalWindow === undefined) Reflect.deleteProperty(globalThis, "window");
     else Object.defineProperty(globalThis, "window", { configurable: true, value: originalWindow });
     if (originalLocalStorage === undefined) Reflect.deleteProperty(globalThis, "localStorage");

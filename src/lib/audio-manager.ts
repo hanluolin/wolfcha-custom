@@ -1,12 +1,9 @@
 import {
-  getMinimaxApiKey,
-  getMinimaxGroupId,
   getModelSource,
   hasMinimaxKey,
   resolveAiVoiceAvailability,
 } from "@/lib/api-keys";
-import { getAuthHeaders } from "@/lib/auth-headers";
-import { gameSessionTracker } from "@/lib/game-session-tracker";
+import { synthesizeSpeech } from "@/lib/tts-direct";
 
 export interface AudioTask {
   id: string; // 语音缓存键，同音色同文字可复用
@@ -38,24 +35,6 @@ export class AudioManager {
 
   constructor() {
     // binding if needed
-  }
-
-  private async buildTtsHeaders(): Promise<Record<string, string>> {
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    const modelSource = getModelSource();
-    const authHeaders = await getAuthHeaders();
-    Object.assign(headers, authHeaders);
-    const sessionId = gameSessionTracker.getSessionId();
-    if (sessionId) {
-      headers["X-Game-Session-Id"] = sessionId;
-    }
-    if (modelSource !== "project" && hasMinimaxKey()) {
-      const apiKey = getMinimaxApiKey();
-      const groupId = getMinimaxGroupId();
-      if (apiKey) headers["X-Minimax-Api-Key"] = apiKey;
-      if (groupId) headers["X-Minimax-Group-Id"] = groupId;
-    }
-    return headers;
   }
 
   setCallbacks(
@@ -122,20 +101,7 @@ export class AudioManager {
   }
 
   private async fetchAndCache(task: AudioTask) {
-    const headers = await this.buildTtsHeaders();
-
-    const response = await fetch("/api/tts", {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ text: task.text, voiceId: task.voiceId }),
-    });
-
-    if (!response.ok) {
-      const body = await response.text().catch(() => "");
-      throw new Error(`TTS request failed: ${response.status} ${body.slice(0, 600)}`);
-    }
-
-    const blob = await response.blob();
+    const blob = await synthesizeSpeech(task.text, task.voiceId);
     const url = URL.createObjectURL(blob);
     try {
       const durationMs = await this.getDurationMs(url);
