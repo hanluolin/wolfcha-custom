@@ -104,6 +104,26 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 For a static export (e.g. Capacitor / WebView APK): `pnpm build` emits `./out`.
 
+To build the Android APK:
+
+```bash
+# 1. Static export into ./out
+pnpm build
+
+# 2. Copy it into the Capacitor Android project
+npx cap sync android
+
+# 3. Build the debug APK
+cd android
+JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
+  ANDROID_HOME="$HOME/Library/Android/sdk" \
+  ./gradlew assembleDebug
+```
+
+The APK is written to `android/app/build/outputs/apk/debug/app-debug.apk`. Point
+`JAVA_HOME` (JDK 21+) and `ANDROID_HOME` at your own installations if they differ,
+or run `npx cap open android` and build from Android Studio.
+
 ## 📄 License
 
 MIT

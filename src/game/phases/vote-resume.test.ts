@@ -15,6 +15,10 @@ test("实际投票恢复只调用未投 AI，保留已投票和弃票，跳过�
   for (const id of ["@/lib/vote-rounds", "@/lib/prompt-utils", "@/i18n/translator", "@/lib/game-texts", "@/lib/game-constants", "@/lib/narrator-voice", "@/lib/game-flow-controller"]) modules[id] = await import(id);
   modules["../core/GamePhase"] = await import("../core/GamePhase");
   modules["@/lib/narrator-audio-player"] = { playNarrator: async () => {} };
+  modules["@/lib/ai-retry"] = {
+    runAiTaskWithRetry: async <T>(opts: { task: () => Promise<T>; onSkip: () => T | Promise<T> }) => opts.task(),
+    askRetryOrSkip: async () => "skip",
+  };
   const calls: string[] = [];
   modules["@/lib/game-master"] = { ...await import("@/lib/game-master"), generateAIVote: async (_: GameState, p: Player) => { calls.push(p.playerId); return { seat: 2, reason: "补完投票" }; } };
   const m = { exports: {} as { VotePhase: typeof VotePhase } };

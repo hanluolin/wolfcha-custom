@@ -29,6 +29,7 @@ import {
   getOpenAIBaseUrl,
   getOpenAIApiKey,
   getOpenAIModel,
+  getOpenAIMaxTokens,
   getOpenAIJsonObjectEnabled,
   getOpenAIReasoningEffort,
   getOpenAIReasoningStyle,
@@ -40,6 +41,7 @@ import {
   setModelSource,
   setOpenAIBaseUrl,
   setOpenAIApiKey,
+  setOpenAIMaxTokens,
   setOpenAIModel,
   setOpenAIJsonObjectEnabled,
   setOpenAIReasoningEffort,
@@ -72,6 +74,10 @@ export function ConnectionSettingsForm({
   });
   const [reasoningStyle, setReasoningStyle] = useState<ReasoningStyle>(() => getOpenAIReasoningStyle());
   const [jsonObject, setJsonObject] = useState(() => getOpenAIJsonObjectEnabled());
+  const [maxTokens, setMaxTokens] = useState<string>(() => {
+    const value = getOpenAIMaxTokens();
+    return value === null ? "" : String(value);
+  });
   const [minimaxKey, setMinimaxKeyState] = useState(() => getMinimaxApiKey());
   const [minimaxGroupId, setMinimaxGroupIdState] = useState(() => getMinimaxGroupId());
   const [showKey, setShowKey] = useState(false);
@@ -95,6 +101,7 @@ export function ConnectionSettingsForm({
     setOpenAIReasoningEffort(effort);
     setOpenAIReasoningStyle(reasoningStyle);
     setOpenAIJsonObjectEnabled(jsonObject);
+    setOpenAIMaxTokens(maxTokens.trim());
     setMinimaxApiKey(minimaxKey.trim());
     setMinimaxGroupId(minimaxGroupId.trim());
     setModelSource("custom");
@@ -102,7 +109,7 @@ export function ConnectionSettingsForm({
       description: t("customKey.toasts.savedDesc"),
     });
     onSaved?.();
-  }, [apiKey, baseUrl, effort, jsonObject, minimaxGroupId, minimaxKey, model, onSaved, reasoningStyle, t, thinking]);
+  }, [apiKey, baseUrl, effort, jsonObject, maxTokens, minimaxGroupId, minimaxKey, model, onSaved, reasoningStyle, t, thinking]);
 
   const handleClear = useCallback(() => {
     clearApiKeys();
@@ -113,6 +120,7 @@ export function ConnectionSettingsForm({
     setEffort("medium");
     setReasoningStyle("auto");
     setJsonObject(true);
+    setMaxTokens("");
     setMinimaxKeyState("");
     setMinimaxGroupIdState("");
     toast.success(t("customKey.toasts.cleared"));
@@ -255,6 +263,24 @@ export function ConnectionSettingsForm({
             </p>
           </div>
           <Switch checked={jsonObject} onCheckedChange={setJsonObject} aria-label={t("customKey.openai.jsonObject")} />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="llm-max-tokens" className="text-xs">
+            {t("customKey.openai.maxTokens")}
+          </Label>
+          <Input
+            id="llm-max-tokens"
+            name="wolfcha-openai-max-tokens"
+            type="number"
+            min={1}
+            step={256}
+            autoComplete="off"
+            placeholder={t("customKey.openai.maxTokensPlaceholder")}
+            value={maxTokens}
+            onChange={(e) => setMaxTokens(e.target.value)}
+          />
+          <p className="text-xs text-[var(--text-muted)]">{t("customKey.openai.maxTokensDesc")}</p>
         </div>
       </section>
 

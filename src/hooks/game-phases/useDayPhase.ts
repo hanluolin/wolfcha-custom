@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
-import { toast } from "sonner";
 import { useAtom, useStore } from "jotai";
 import type { GameState, Player } from "@/types/game";
 import type { PrefetchCriteria, PrefetchedSpeech } from "../useDialogueManager";
@@ -25,6 +24,7 @@ import { createSpeechRequest, type SpeechRequest } from "@/lib/speech-request";
 import { generateUUID } from "@/lib/utils";
 import { withTimeout } from "@/lib/request-timeout";
 import { isGameSessionExpiredMessage } from "@/lib/llm";
+import { askRetryOrSkip } from "@/lib/ai-retry";
 
 export interface DayPhaseCallbacks {
   setDialogue: (speaker: string, text: string, isStreaming?: boolean) => void;
@@ -187,20 +187,54 @@ export function useDayPhase(
       timeoutId = setTimeout(() => {
         if (!isValid()) { resolve("timeout"); return; }
         controller.abort();
-        // 超时兜底仍属于本次请求；关闭网络回调后才能写入。
-        if (displayedCount === 0) appendToSpeechQueue(t("dayPhase.timeout"), id, 0);
-        finalizeSpeechQueue({ requestId: id });
-        setIsWaitingForAI(false);
+        // 不再自动收尾；交由下方统一「重试 / 跳过」询问处理
         resolve("timeout");
       }, 60000);
     });
+
+    /**
+     * 本次请求失败（错误/超时）的统一处理：暂停推进并询问用户「重试 / 跳过」。
+     * - 重试：清空失败标记后重新发起同一角色的同一轮发言；
+     * - 跳过：沿用旧超时兜底——无已显示段落时补一句“我没啥想说的”，
+     *         解除阻塞并 finalize，让发言队列自然收尾、正常推进到下一位。
+     */
+    const handleFailure = async (kind: "timeout" | "error", error?: unknown) => {
+      if (!request.isValid()) return;
+      failedRequestRef.current = request;
+      const zh = getLocale() === "zh";
+      const description = kind === "timeout"
+        ? (zh ? "等待 60 秒没有响应，可选择重试或跳过。" : "No response within 60s. Retry or skip.")
+        : (isGameSessionExpiredMessage(String(error))
+          ? (zh ? "对局会话已失效，请退出并重新开始。" : "Game session expired. Restart the game.")
+          : (zh ? "AI 发言生成失败，游戏已暂停推进。" : "AI speech failed. Progress is paused."));
+      const decision = await askRetryOrSkip({
+        label: `${player.displayName} ${zh ? "发言" : "speech"}`,
+        description,
+      });
+      if (!request.isValid()) { failedRequestRef.current = null; return; }
+      if (decision === "retry") {
+        failedRequestRef.current = null;
+        activeRequestRef.current = null;
+        void runAISpeech(store.get(gameStateAtom), player, options);
+        return;
+      }
+      // 跳过：解除阻塞并按“无内容可播”时给一句兜底，随后交由队列自然推进
+      failedRequestRef.current = null;
+      if (displayedCount === 0) {
+        appendToSpeechQueue(t("dayPhase.timeout"), id, 0);
+      }
+      if (request.isValid()) finalizeSpeechQueue({ requestId: id });
+    };
 
     try {
       const streamPromise = prefetched
         ? Promise.resolve(prefetched.forEach(appendSegment))
         : generateAISpeechSegmentsStream(state, player, { signal: controller.signal, onSegmentReceived: appendSegment });
       const result = await Promise.race([streamPromise, timeoutPromise]);
-      if (result === "timeout" || !isValid()) return;
+      if (result === "timeout" || !isValid()) {
+        if (result === "timeout") await handleFailure("timeout");
+        return;
+      }
       await displayChain;
       if (!isValid()) return;
       const nextSeat = getNextSpeechSeat(state);
@@ -217,25 +251,14 @@ export function useDayPhase(
       if (!isValid()) return;
       await displayChain;
       if (!isValid()) return;
-      // 错误属于系统，不能记为角色台词。保留已确认段落，阻止自动推进至下一人。
-      failedRequestRef.current = request;
-      if (!collected.length) setDialogue(speakerHost, t(isGameSessionExpiredMessage(String(error))
-        ? "dayPhase.sessionExpired" : "dayPhase.interrupted"), false);
-      finalizeSpeechQueue({ requestId: id });
-      toast.error(getLocale() === "zh" ? "发言生成失败，游戏已暂停推进" : "Speech failed. Progress is paused.", {
-        duration: Infinity,
-        action: { label: getLocale() === "zh" ? "重试发言" : "Retry speech", onClick: () => {
-          if (!request.isValid()) return;
-          activeRequestRef.current = null;
-          void runAISpeech(store.get(gameStateAtom), player, options);
-        } },
-      });
+      // 错误属于系统，不能记为角色台词。保留已确认段落，暂停并询问用户。
+      await handleFailure("error", error);
     } finally {
       clearTimeout(timeoutId);
       if (request.isValid()) setIsWaitingForAI(false);
     }
   }, [appendToSpeechQueue, consumePrefetchedSpeech, finalizeSpeechQueue, getToken,
-    initStreamingSpeechQueue, prefetchNextAISpeech, setDialogue, setIsWaitingForAI, speakerHost, store, t]);
+    initStreamingSpeechQueue, prefetchNextAISpeech, setDialogue, setIsWaitingForAI, store, t]);
 
   // 更新 ref 以打破循环依赖
   /** 开始遗言阶段 */

@@ -15,6 +15,7 @@ import {
   BADGE_VOTE_ABSTAIN,
   BADGE_TRANSFER_TORN,
 } from "@/lib/game-master";
+import { runAiTaskWithRetry } from "@/lib/ai-retry";
 import { getSystemMessages, getUiText } from "@/lib/game-texts";
 import { DELAY_CONFIG, GAME_CONFIG } from "@/lib/game-constants";
 import { delay, type FlowToken } from "@/lib/game-flow-controller";
@@ -322,7 +323,15 @@ export function useBadgePhase(
 
       setIsWaitingForAI(true);
       try {
-        const results = await generateAIBadgeSignupBatch(baseState, pendingAI);
+        const { t } = getTexts();
+        const results = await runAiTaskWithRetry<Record<string, boolean>>({
+          label: t("aiRetry.badgeSignup"),
+          description: `${pendingAI.length} ${t("aiRetry.badgeSignup")}`,
+          stillValid: () => gameStateRef.current?.phase === "DAY_BADGE_SIGNUP",
+          task: () => generateAIBadgeSignupBatch(baseState, pendingAI),
+          // 跳过 = 未报名（与批量请求失败时的旧兜底一致）
+          onSkip: () => ({}),
+        });
         const latestState = gameStateRef.current ?? baseState;
         const mergedSignup = {
           ...latestState.badge.signup,
@@ -548,7 +557,19 @@ export function useBadgePhase(
         setIsWaitingForAI(true);
         let targetSeat: number;
         try {
-          targetSeat = await generateAIBadgeVote(currentState, aiPlayer);
+          const { t } = getTexts();
+          targetSeat = await runAiTaskWithRetry<number>({
+            label: t("aiRetry.badgeVote"),
+            description: aiPlayer.displayName,
+            stillValid: () => {
+              const latest = gameStateRef.current;
+              return !!latest && latest.gameId === state.gameId && latest.day === state.day &&
+                latest.phase === "DAY_BADGE_ELECTION" &&
+                latest.badge.revoteCount === currentState.badge.revoteCount;
+            },
+            task: () => generateAIBadgeVote(currentState, aiPlayer),
+            onSkip: () => BADGE_VOTE_ABSTAIN,
+          });
         } catch (e) {
           console.warn("[wolfcha] AI badge vote threw, treating as abstain", e);
           targetSeat = BADGE_VOTE_ABSTAIN;
@@ -608,8 +629,18 @@ export function useBadgePhase(
 
     // AI 警长选择移交对象
     setIsWaitingForAI(true);
-    const targetSeat = await generateBadgeTransfer(currentState, sheriff);
-    setIsWaitingForAI(false);
+    let targetSeat: number;
+    try {
+      targetSeat = await runAiTaskWithRetry<number>({
+        label: texts.t("aiRetry.badgeTransfer"),
+        description: sheriff.displayName,
+        stillValid: () => gameStateRef.current?.phase === "BADGE_TRANSFER",
+        task: () => generateBadgeTransfer(currentState, sheriff),
+        onSkip: () => BADGE_TRANSFER_TORN,
+      });
+    } finally {
+      setIsWaitingForAI(false);
+    }
 
     if (targetSeat === BADGE_TRANSFER_TORN) {
       // 撕毁警徽

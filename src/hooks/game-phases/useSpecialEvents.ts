@@ -11,6 +11,7 @@ import {
   checkWinCondition,
   generateHunterShoot,
 } from "@/lib/game-master";
+import { runAiTaskWithRetry } from "@/lib/ai-retry";
 import { getSystemMessages } from "@/lib/game-texts";
 import { getI18n } from "@/i18n/translator";
 import { DELAY_CONFIG, getRoleName } from "@/lib/game-constants";
@@ -113,8 +114,18 @@ export function useSpecialEvents(
 
     // AI 猎人开枪
     setIsWaitingForAI(true);
-    const targetSeat = await generateHunterShoot(currentState, hunter);
-    setIsWaitingForAI(false);
+    let targetSeat: number | null;
+    try {
+      targetSeat = await runAiTaskWithRetry<number | null>({
+        label: texts.t("aiRetry.hunter"),
+        description: hunter.displayName,
+        stillValid: () => isTokenValid(token),
+        task: () => generateHunterShoot(currentState, hunter),
+        onSkip: () => null,
+      });
+    } finally {
+      setIsWaitingForAI(false);
+    }
 
     if (!isTokenValid(token)) return;
 

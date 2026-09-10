@@ -512,6 +512,14 @@ export function DialogArea({
 
   const stablePortraitPlayer = portraitPlayer || lastPortraitPlayerRef.current;
 
+  // 选中目标后，若确认卡位于滚动容器可视区之外（矮屏/键盘顶起），自动滚入视野
+  const actionConfirmRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (selectedSeat !== null && actionConfirmRef.current) {
+      actionConfirmRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [selectedSeat]);
+
   const portraitNode = (
     <AnimatePresence mode="wait" initial={false}>
       {(() => {
@@ -1152,7 +1160,7 @@ export function DialogArea({
       </div>
 
       {/* 下方：对话框 - 固定在底部 */}
-      <div className="wc-dialog-bottom mt-auto shrink-0 px-4 lg:px-6 pb-4 lg:pb-6 pt-0">
+      <div className="wc-dialog-bottom mt-auto min-h-[88px] overflow-y-auto scrollbar-hide px-4 lg:px-6 pb-4 lg:pb-6 pt-0">
         {/* 投票进度 */}
         {(gameState.phase === "DAY_VOTE" || gameState.phase === "DAY_BADGE_ELECTION") && (
           <div className="mb-3 bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg p-3">
@@ -1390,6 +1398,7 @@ export function DialogArea({
                 return (
                   <motion.div
                     key="action-confirm"
+                    ref={actionConfirmRef}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
@@ -1424,6 +1433,7 @@ export function DialogArea({
                 selectedSeat !== null ? (
                   <motion.div
                     key="witch-poison-confirm"
+                    ref={actionConfirmRef}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}

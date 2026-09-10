@@ -8,6 +8,7 @@
 import {
   getOpenAIApiKey,
   getOpenAIBaseUrl,
+  getOpenAIMaxTokens,
   getOpenAIModel,
   getOpenAIJsonObjectEnabled,
   getOpenAIReasoningEffort,
@@ -188,11 +189,19 @@ function applyOpenAICompatOverride<T extends GenerateOptions>(options: T): T {
   };
   out.reasoning_effort = undefined;
 
+  // 全局最大输出 tokens：设置了则覆盖每个请求的默认预算。
+  // thinking 类模型会把推理 token 计入 max_tokens，预算不足时 content 可能为空/截断。
+  const maxTokensOverride = getOpenAIMaxTokens();
+  if (maxTokensOverride !== null) out.max_tokens = maxTokensOverride;
+
   const jsonObjectEnabled = getOpenAIJsonObjectEnabled();
   const rf = options.response_format as { type?: string } | undefined;
   if (!jsonObjectEnabled) {
     out.response_format = undefined;
   } else if (rf && rf.type === "json_schema") {
+    // 网关不支持 json_schema：降级为 json_object。
+    // 注意：各结构化调用的 prompt 模板自身带输出格式示例（含 "json"/字段说明），
+    // 保证字段稳定；不要在此处改写 messages（会破坏 aiLogger↔传输消息一致性审计）。
     out.response_format = { type: "json_object" as const };
   }
   return out;

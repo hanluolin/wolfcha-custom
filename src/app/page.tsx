@@ -539,8 +539,9 @@ export default function Home() {
     target?: { seat: number; name: string; avatarUrl?: string };
   } | null>(null);
   const nightActionOverlayTimerRef = useRef<number | null>(null);
+  // 控制台按钮在所有环境（dev / 生产静态包 / APK）都显示；构建时设 NEXT_PUBLIC_SHOW_DEVTOOLS=false 可关闭。
   const showDevTools =
-    process.env.NODE_ENV !== "production" && (process.env.NEXT_PUBLIC_SHOW_DEVTOOLS ?? "true") === "true";
+    (process.env.NEXT_PUBLIC_SHOW_DEVTOOLS ?? "true") === "true";
   const lastNightActionRef = useRef<{
     wolfTarget?: number;
     witchSave?: boolean;
@@ -1250,7 +1251,10 @@ export default function Home() {
   const isWelcomeStage = !gameStarted;
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-transparent">
+    <div
+      className="h-screen flex flex-col overflow-hidden bg-transparent"
+      style={{ height: "100dvh" }}
+    >
       <CharacterRetryDialog retry={characterRetry} onConfirm={confirmCharacterBatchRetry} />
       <GameBackground isNight={visualIsNight} isBlinking={!!dayNightBlinkPhase} />
 

@@ -1,9 +1,15 @@
 /**
- * DiceBear Notionists Avatar Configuration
- * 
- * 头像配置规则：
- * - 发型共 63 个变量 (variant01 - variant63)
- * - 嘴型共 30 个变量 (variant01 - variant30)
+ * Avatar Configuration
+ *
+ * 头像资源（2026-09-10 改造）：
+ * - 之前使用 DiceBear notionists 外网 API（api.dicebear.com），该服务在国内常常无法直连，
+ *   会导致玩家/AI 默认头像破图。
+ * - 改为本地静态资源（public/avatars/），由 scripts/generate-avatars.mjs 在构建期预生成
+ *   16 张 SVG，每个头像附带 idle/t1/t2 三个嘴型变体，嘴型切换与组件保持兼容。
+ *
+ * 资源结构：
+ *   /avatars/bg/avatar-{NN}-{idle|t1|t2}.svg      带柔和底色（普通圆头像）
+ *   /avatars/clear/avatar-{NN}-{idle|t1|t2}.svg   透明背景（大立绘/说话头像）
  */
 
 import type { ModelRef } from "@/types/game";
@@ -11,7 +17,7 @@ import type { Gender } from "./character-generator";
 import { getModelLogoPath } from "./model-logo";
 
 // ============================================
-// 发型配置 (Hair)
+// 发型配置 (Hair)（保留以兼容旧导入，本地头像不再使用）
 // ============================================
 
 // 长发变量 - 仅供女性使用
@@ -157,9 +163,12 @@ export function getDefaultIdleLips(): string {
 }
 
 // ============================================
-// URL 构建
+// 本地默认头像（替代 DiceBear 外网）
 // ============================================
 
+/**
+ * 头像 URL 选项（签名兼容旧版本；gender/hair/eyes/scale/translateY 在本地头像中不再使用）。
+ */
 export interface AvatarUrlOptions {
   seed: string;
   gender?: Gender;
@@ -171,64 +180,46 @@ export interface AvatarUrlOptions {
   backgroundColor?: string | "transparent";
 }
 
+/** 本地默认头像数量：public/avatars/{bg,clear}/avatar-{00..COUNT-1}-{idle|t1|t2}.svg */
+export const LOCAL_AVATAR_COUNT = 16;
+
+/** 根据 seed 稳定映射到 0..LOCAL_AVATAR_COUNT-1。 */
+export function getLocalAvatarIndex(seed: string): number {
+  return hashString(seed) % LOCAL_AVATAR_COUNT;
+}
+
+/** 嘴型 → 本地文件名后缀。TALKING_LIPS[0]/[1] 对应 t1/t2，其余（含默认闭合嘴）→ idle。 */
+type MouthKey = "idle" | "t1" | "t2";
+function resolveMouthKey(lips: string | undefined): MouthKey {
+  if (lips === TALKING_LIPS[0]) return "t1";
+  if (lips === TALKING_LIPS[1]) return "t2";
+  return "idle";
+}
+
+const pad2 = (n: number): string => String(n).padStart(2, "0");
+
 /**
- * 构建 DiceBear Notionists 头像 URL
+ * 构建本地头像资源 URL（替代原 DiceBear 外链）。
+ *
+ * 资源选择规则：
+ *   - backgroundColor === "transparent"  → /avatars/clear/... （大立绘/说话头像，叠加渐变光晕）
+ *   - 其余（含未传）                       → /avatars/bg/...   （普通圆头像，自带柔和底色）
+ *   - seed → 稳定映射到 16 张之一
+ *   - lips → 选 idle/t1/t2 之一
+ *
+ * 旧字段（gender/hair/eyes/scale/translateY/beardProbability）参数签名保留以兼容调用方，
+ * 本地资源已预生成固定外观，这些字段不再影响结果。
  */
 export function buildAvatarUrl(options: AvatarUrlOptions): string {
-  const {
-    seed,
-    gender,
-    eyes,
-    lips,
-    hair,
-    scale = 100,
-    translateY = 0,
-    backgroundColor,
-  } = options;
-
-  const params = new URLSearchParams();
-  params.set("seed", seed);
-
-  // 背景色
-  if (backgroundColor) {
-    params.set("backgroundColor", backgroundColor);
-  } else {
-    params.set("backgroundColor", getAvatarBgColor(seed));
-  }
-
-  // 缩放和位移
-  if (scale !== 100) {
-    params.set("scale", String(scale));
-  }
-  if (translateY !== 0) {
-    params.set("translateY", String(translateY));
-  }
-
-  // 发型 - 如果提供了 gender，则根据性别选择
-  if (hair) {
-    params.set("hair", hair);
-  } else if (gender) {
-    params.set("hair", getHairForSeed(seed, gender));
-  }
-
-  const resolvedEyes = eyes ?? getDayEyesForSeed(seed);
-  params.set("eyes", resolvedEyes);
-
-  // 嘴型
-  if (lips) {
-    params.set("lips", lips);
-  }
-
-  // 胡子概率 - 女性角色设置为 0 防止出现胡子
- 
-  params.set("beardProbability", "0");
-  
-
-  return `https://api.dicebear.com/7.x/notionists/svg?${params.toString()}`;
+  const idx = getLocalAvatarIndex(options.seed);
+  const mouth = resolveMouthKey(options.lips);
+  const transparent = options.backgroundColor === "transparent";
+  const dir = transparent ? "clear" : "bg";
+  return `/avatars/${dir}/avatar-${pad2(idx)}-${mouth}.svg`;
 }
 
 /**
- * 简化版 URL 构建 - 用于快速生成头像（兼容旧代码）
+ * 简化版 URL 构建（兼容旧代码）：seed + 可选 backgroundColor / gender（gender 仅签名兼容）。
  */
 export function buildSimpleAvatarUrl(
   seed: string,
@@ -248,14 +239,10 @@ export function buildSimpleAvatarUrl(
   const gender =
     typeof backgroundColorOrOptions === "string" ? undefined : backgroundColorOrOptions?.gender;
 
-  const eyes =
-    typeof backgroundColorOrOptions === "string" ? undefined : backgroundColorOrOptions?.eyes;
-
   return buildAvatarUrl({
     seed,
     gender,
-    eyes,
-    backgroundColor: backgroundColor || getAvatarBgColor(seed),
+    backgroundColor,
   });
 }
 

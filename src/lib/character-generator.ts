@@ -29,6 +29,10 @@ import { getRandomScenario } from "./scenarios";
 import { resolveVoiceId, VOICE_PRESETS, type AppLocale } from "./voice-constants";
 import { getI18n } from "@/i18n/translator";
 import { parseLLMJson } from "./llm-json";
+import {
+  CHARACTER_PERSONA_BATCH_MAX_TOKENS,
+  getCharacterBaseProfileMaxTokens,
+} from "./character-gen-defaults";
 
 export interface GeneratedCharacter {
   displayName: string;
@@ -56,7 +60,6 @@ const MODEL_DISPLAY_NAME_MAP: Array<{ match: RegExp; label: string }> = [
 
 const CHARACTER_GENERATOR_REASONING = { enabled: false } as const;
 const CHARACTER_PERSONA_BATCH_SIZE = 3;
-const CHARACTER_PERSONA_BATCH_MAX_TOKENS = 4200;
 
 function shuffleArray<T>(array: T[]): T[] {
   const shuffled = [...array];
@@ -562,18 +565,44 @@ export async function generateCharacters(
 ): Promise<GeneratedCharacter[]> {
   const usedScenario = scenario ?? getRandomScenario();
   const basePrompt = buildBaseProfilesPrompt(count, usedScenario);
-  const baseResult = await generateJSON<unknown>({
-    model: getGeneratorModel(),
-    messages: [{ role: "user", content: basePrompt }],
-    temperature: GAME_TEMPERATURE.CHARACTER_GENERATION,
-    max_tokens: Math.max(2400, count * 350 + 600),
-    reasoning: CHARACTER_GENERATOR_REASONING,
-    preferRootKeys: ["profiles"],
-    response_format: buildBaseProfilesResponseFormat(count),
-  });
-  const baseProfiles = normalizeBaseProfiles(baseResult).profiles;
-  if (!isValidBaseProfiles(baseProfiles, count)) {
-    throw new Error("Base profile generation returned invalid schema");
+
+  // 基础档案（一次性生成全部）：失败先经 onBatchRetry 征询用户（与 persona 批一致），
+  // 未提供回调时保持原抛错行为。
+  let baseProfiles: BaseProfile[] = [];
+  {
+    let baseAttempt = 0;
+    for (;;) {
+      baseAttempt += 1;
+      try {
+        const baseResult = await generateJSON<unknown>({
+          model: getGeneratorModel(),
+          messages: [{ role: "user", content: basePrompt }],
+          temperature: GAME_TEMPERATURE.CHARACTER_GENERATION,
+          // thinking 类模型的推理 token 会计入 max_tokens（如 deepseek-v4-flash 单次思考可耗 3k+），
+          // 预算不足会 content 为空/截断 → 解析失败。默认预算给足“推理 + 实际 JSON”两者余量；
+          // 可在设置→OpenAI 兼容网关的「最大输出 tokens」里覆盖。
+          max_tokens: getCharacterBaseProfileMaxTokens(count),
+          reasoning: CHARACTER_GENERATOR_REASONING,
+          preferRootKeys: ["profiles"],
+          response_format: buildBaseProfilesResponseFormat(count),
+        });
+        const normalized = normalizeBaseProfiles(baseResult).profiles;
+        if (!isValidBaseProfiles(normalized, count)) {
+          throw new Error("Base profile generation returned invalid schema");
+        }
+        baseProfiles = normalized;
+        break;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!options?.onBatchRetry) throw error;
+        const shouldRetry = await options.onBatchRetry({
+          batchStartIndex: 0,
+          attempt: baseAttempt,
+          reason: message,
+        });
+        if (!shouldRetry) throw error;
+      }
+    }
   }
   options?.onBaseProfiles?.(baseProfiles);
 

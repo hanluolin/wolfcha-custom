@@ -165,8 +165,11 @@ test("警徽报名批处理为每个玩家建立独立 Prompt，并按返回顺�
     assert.doesNotMatch(guardPrompt, /<your_seer_checks>/);
     assert.match(seerPrompt, /警徽竞选报名环节/);
     assert.match(guardPrompt, /警徽竞选报名环节/);
-    assert.match(seerPrompt, /\{"signup":true\}/);
-    assert.match(guardPrompt, /\{"signup":false\}/);
+    // 输出格式为叙述式（模板内不能出现字面 JSON 花括号，否则 next-intl/ICU 解析失败并泄漏 key）
+    assert.match(seerPrompt, /signup/);
+    assert.match(seerPrompt, /true/);
+    assert.match(seerPrompt, /false/);
+    assert.match(guardPrompt, /signup/);
   } finally {
     globalThis.fetch = originalFetch;
     restoreEnv();

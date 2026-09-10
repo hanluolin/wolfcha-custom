@@ -22,6 +22,7 @@ function harness(tts = false) {
   let state: any = { gameId: "game", day: 1, phase: "DAY_SPEECH", currentSpeakerSeat: 0, speechRoundStartMessageIndex: 0, messages: [], players: [first, second] };
   const pending: any[] = [];
   const failures: any[] = [];
+  const retryAsks: any[] = [];
   const audio: string[] = [];
   const readiness = new Map<string, ReturnType<typeof deferred>>();
   const cleanups: Array<() => void> = [];
@@ -39,6 +40,9 @@ function harness(tts = false) {
       useEffect: (fn: any) => { const cleanup = fn(); if (cleanup) cleanups.push(cleanup); },
     };
     if (id === "sonner") return { toast: { error: (_: string, options: any) => failures.push(options) } };
+    if (id === "@/lib/ai-retry") return {
+      askRetryOrSkip: () => { const waiting = deferred(); retryAsks.push(waiting); return waiting.promise; },
+    };
     if (id === "jotai") return { useAtom: () => [state, (next: any) => { state = next; }], useStore: () => ({ get: () => state }) };
     if (id === "next-intl") return { useTranslations: () => (key: string) => key };
     if (id === "@/store/game-machine") return { gameStateAtom: {} };
@@ -73,10 +77,10 @@ function harness(tts = false) {
   const day = load("src/hooks/game-phases/useDayPhase.ts").useDayPhase(null, {
     ...dialogue, getToken: () => flow.getToken(), isTokenValid: (token: any) => token.isValid(), setAfterLastWords: () => {},
   });
-  return { first, second, pending, failures, audio, readiness, flow, day, dialogue,
+  return { first, second, pending, failures, retryAsks, audio, readiness, flow, day, dialogue,
     timeout: () => organizingTimeout?.(),
     get state() { return state; }, setState(next: any) { state = next; },
-    dispose() { cleanups.forEach((fn) => fn()); readiness.forEach((d) => d.resolve()); pending.forEach((p) => p.resolve([])); },
+    dispose() { cleanups.forEach((fn) => fn()); readiness.forEach((d) => d.resolve()); pending.forEach((p) => p.resolve([])); retryAsks.forEach((p) => p.resolve("skip")); },
   };
 }
 
@@ -159,17 +163,23 @@ for (const mutation of ["gameId", "round", "devMutation", "token", "unmount"] as
 }
 
 
-test("首段已收到但 TTS 尚未就绪时超时，仍给出可推进的兜底段落", async () => {
+test("首段已收到但 TTS 尚未就绪时超时：先询问重试/跳过，跳过则给出可推进的兜底段落", async () => {
   const h = harness(true);
   try {
     const running = h.day.runAISpeech(h.state, h.first);
     h.pending[0].options.onSegmentReceived("等待语音的首段", 0);
     await tick();
     h.timeout();
+    await tick();
+    // 超时不再静默收尾，而是弹出询问
+    assert.equal(h.retryAsks.length, 1);
+    assert.equal(h.day.isSpeechBlocked(), true);
+    h.retryAsks[0].resolve("skip");
     await running;
     const queue = h.dialogue.getSpeechQueue();
     assert.deepEqual([...queue.segments], ["dayPhase.timeout"]);
     assert.equal(queue.isFinalized, true);
+    assert.equal(h.day.isSpeechBlocked(), false);
     h.readiness.get("等待语音的首段")!.resolve();
     await tick();
     assert.deepEqual([...queue.segments], ["dayPhase.timeout"]);
@@ -177,17 +187,33 @@ test("首段已收到但 TTS 尚未就绪时超时，仍给出可推进的兜底
   } finally { h.dispose(); }
 });
 
-
-test("发言恢复耗尽后停住推进，错误不作为角色台词，用户重试仍在同一发言轮次", async () => {
+test("发言失败后询问：选择跳过且无已显示段落 → 兜底一句“没啥想说的”并解除阻塞", async () => {
   const h = harness();
   try {
     const running = h.day.runAISpeech(h.state, h.first);
     h.pending[0].reject(new Error("公开发言格式恢复失败"));
-    await running;
+    await tick();
+    assert.equal(h.retryAsks.length, 1);
     assert.equal(h.day.isSpeechBlocked(), true);
-    assert.deepEqual([...h.dialogue.getSpeechQueue().segments], []);
-    assert.equal(h.failures.length, 1);
-    h.failures[0].action.onClick();
+    h.retryAsks[0].resolve("skip");
+    await running;
+    assert.equal(h.day.isSpeechBlocked(), false);
+    const queue = h.dialogue.getSpeechQueue();
+    assert.deepEqual([...queue.segments], ["dayPhase.timeout"]);
+    assert.equal(queue.isFinalized, true);
+  } finally { h.dispose(); }
+});
+
+test("发言恢复耗尽后停住推进，用户选择重试仍在同一发言轮次", async () => {
+  const h = harness();
+  try {
+    const running = h.day.runAISpeech(h.state, h.first);
+    h.pending[0].reject(new Error("公开发言格式恢复失败"));
+    await tick();
+    assert.equal(h.day.isSpeechBlocked(), true);
+    assert.equal(h.retryAsks.length, 1);
+    h.retryAsks[0].resolve("retry");
+    await running;
     assert.equal(h.pending.length, 2);
     assert.equal(h.day.isSpeechBlocked(), false);
     h.pending[1].options.onSegmentReceived("重试后的公开发言", 0);

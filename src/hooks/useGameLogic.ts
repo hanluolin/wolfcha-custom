@@ -37,6 +37,7 @@ import {
 } from "@/lib/game-master";
 import { buildGenshinModelRefs, generateCharacters, generateGenshinModeCharacters, sampleModelRefs, type GeneratedCharacter } from "@/lib/character-generator";
 import { getSystemMessages, getUiText } from "@/lib/game-texts";
+import { runAiTaskWithRetry, cancelPendingAiRetry } from "@/lib/ai-retry";
 import { getRandomScenario } from "@/lib/scenarios";
 import { DELAY_CONFIG, getRoleName } from "@/lib/game-constants";
 import { generateUUID } from "@/lib/utils";
@@ -667,10 +668,16 @@ export function useGameLogic() {
     if (state.roleAbilities.whiteWolfKingBoomUsed) return false;
     if (!wwk.agentProfile?.modelRef) return false;
 
-    const targetSeat = await generateWhiteWolfKingBoomDecision(state, wwk);
+    const token = getToken();
+    const targetSeat = await runAiTaskWithRetry<number | null>({
+      label: t("aiRetry.wwkBoom"),
+      description: wwk.displayName,
+      stillValid: () => isTokenValid(token),
+      task: () => generateWhiteWolfKingBoomDecision(state, wwk),
+      onSkip: () => null,
+    });
     if (targetSeat === null) return false; // AI 选择不自爆
 
-    const token = getToken();
     if (!isTokenValid(token)) return false;
 
     // 执行自爆逻辑
@@ -1380,6 +1387,7 @@ export function useGameLogic() {
     const totalPlayers = playerCount;
 
     clearCancellableTimeouts();
+    cancelPendingAiRetry();
     const characterAnimationGeneration = cancellableTimeoutGenerationRef.current;
     resetDialogueState();
     setInputText("");
@@ -1785,6 +1793,7 @@ export function useGameLogic() {
   /** 重新开始 */
   const restartGame = useCallback(() => {
     flowController.current.interrupt();
+    cancelPendingAiRetry();
     void gameSessionTracker.abandon().catch((error) => {
       console.error("[game-session] Failed to abandon session:", error);
     });

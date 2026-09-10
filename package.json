@@ -10,6 +10,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.1",
+    "@capacitor/core": "^8.5.1",
     "@phosphor-icons/react": "^2.1.10",
     "@radix-ui/react-avatar": "^1.1.11",
     "@radix-ui/react-dialog": "^1.1.15",
@@ -44,6 +46,7 @@
     "uuid": "^13.0.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

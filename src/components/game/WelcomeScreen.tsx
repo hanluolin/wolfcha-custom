@@ -234,8 +234,9 @@ export function WelcomeScreen({
   const [isDevConsoleOpen, setIsDevConsoleOpen] = useState(false);
   const [devTab, setDevTab] = useState<"preset" | "roles">("preset");
   const [devPreset, setDevPreset] = useState<DevPreset | "">("");
+  // 控制台按钮在所有环境（dev / 生产静态包 / APK）都显示；构建时设 NEXT_PUBLIC_SHOW_DEVTOOLS=false 可关闭。
   const showDevTools =
-    process.env.NODE_ENV !== "production" && (process.env.NEXT_PUBLIC_SHOW_DEVTOOLS ?? "true") === "true";
+    (process.env.NEXT_PUBLIC_SHOW_DEVTOOLS ?? "true") === "true";
 
   const roleOptions: Role[] = ["Villager", "Werewolf", "WhiteWolfKing", "Seer", "Witch", "Hunter", "Guard", "Idiot"];
   const roleLabels = useMemo<Record<Role, string>>(

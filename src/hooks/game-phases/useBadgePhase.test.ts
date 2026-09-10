@@ -20,6 +20,10 @@ test("真实警徽结算：首轮票型公开进入 PK，复投保留各轮候�
     "@/lib/game-flow-controller": { delay: async () => {} },
     "@/lib/narrator-audio-player": { playNarrator: async () => {} },
     "@/store/game-machine": { gameStateAtom: {} },
+    "@/lib/ai-retry": {
+      runAiTaskWithRetry: async <T>(opts: { task: () => Promise<T>; onSkip: () => T | Promise<T> }) => opts.task(),
+      askRetryOrSkip: async () => "skip",
+    },
   };
   let state = createSinglePlayerContextAuditState();
   state.phase = "DAY_BADGE_ELECTION"; state.day = 1; state.messages = [];

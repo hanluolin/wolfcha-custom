@@ -36,10 +36,66 @@ function prefersThinkingParam(style: ReasoningStyle): boolean {
   return false;
 }
 
+// 传输层消息宽松视图：只关心 role/content 结构
+type LightMessage = { role: string; content: unknown };
+
+/** 给最后一条 user 消息追加一段指令（字符串或 text part），无 user 可追加时返回 null。 */
+function appendSuffixToMessages(
+  messages: LightMessage[],
+  suffix: string,
+): LightMessage[] | null {
+  const cloned = messages.map((m) => ({ ...m }));
+  for (let i = cloned.length - 1; i >= 0; i -= 1) {
+    const m = cloned[i];
+    if (m.role !== "user") continue;
+    if (typeof m.content === "string") {
+      cloned[i] = { ...m, content: `${m.content}${suffix}` };
+      return cloned;
+    }
+    if (Array.isArray(m.content) && m.content.length > 0) {
+      const parts = m.content.map((p) => ({ ...p }));
+      const last = parts[parts.length - 1] as { type?: string; text?: unknown } | undefined;
+      if (last && last.type === "text" && typeof last.text === "string") {
+        parts[parts.length - 1] = { type: "text", text: `${last.text}${suffix}` };
+        cloned[i] = { ...m, content: parts };
+        return cloned;
+      }
+    }
+    // 该 user 消息不是纯文本（如图片），继续找更早的 user 消息
+  }
+  return null;
+}
+
+/** 任一消息文本是否含字面 "json"（用于 DeepSeek 兼容网关的 json_object 校验）。 */
+function messagesContainJsonWord(messages: LightMessage[]): boolean {
+  for (const m of messages) {
+    const content = m.content;
+    if (typeof content === "string" && /json/i.test(content)) return true;
+    if (Array.isArray(content)) {
+      for (const part of content) {
+        if (/json/i.test(String((part as { text?: unknown } | undefined)?.text ?? ""))) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
 function buildRequestBody(options: GenerateOptions): Record<string, unknown> {
+  // DeepSeek 等兼容网关要求 json_object 的 prompt 出现字面 "json"；
+  // 仅在缺失时给最后一条 user 消息补一句（结构化调用的 prompt 模板自带 JSON 格式示例，
+  // 正常已含 "json" 字样；此处的补丁只作为兜底，不参与字段设计）。
+  let messages = options.messages as unknown as LightMessage[];
+  if ((options.response_format as { type?: string } | undefined)?.type === "json_object") {
+    if (!messagesContainJsonWord(messages)) {
+      const withJsonWord = appendSuffixToMessages(messages, "\n\nRespond with a JSON object only.");
+      if (withJsonWord) messages = withJsonWord;
+    }
+  }
   const body: Record<string, unknown> = {
     model: getOpenAIModel() || options.model,
-    messages: options.messages,
+    messages: messages as unknown as typeof options.messages,
     temperature:
       typeof options.temperature === "number" && Number.isFinite(options.temperature)
         ? options.temperature

@@ -405,8 +405,7 @@
         "tag": "Challenge"
       }
     }
-  }
-  ,
+  },
   "gameSetup": {
     "title": "Game setup",
     "description": "Adjust difficulty and player count before starting",
@@ -421,11 +420,31 @@
       "hardDesc": "Deep confrontation, more complex reasoning"
     },
     "playerCount": {
-      "8": { "title": "8 players", "description": "3 wolves, 3 gods, 2 villagers", "roles": "Gods: Seer, Witch, Hunter" },
-      "9": { "title": "9 players", "description": "3 wolves, 3 gods, 3 villagers", "roles": "Gods: Seer, Witch, Hunter" },
-      "10": { "title": "10 players", "description": "2 wolves + WWK, 4 gods, 3 villagers", "roles": "Gods: Seer, Witch, Hunter, Guard" },
-      "11": { "title": "11 players", "description": "3 wolves + WWK, 5 gods, 2 villagers", "roles": "Gods: Seer, Witch, Hunter, Guard, Idiot" },
-      "12": { "title": "12 players", "description": "3 wolves + WWK, 5 gods, 3 villagers", "roles": "Gods: Seer, Witch, Hunter, Guard, Idiot" }
+      "8": {
+        "title": "8 players",
+        "description": "3 wolves, 3 gods, 2 villagers",
+        "roles": "Gods: Seer, Witch, Hunter"
+      },
+      "9": {
+        "title": "9 players",
+        "description": "3 wolves, 3 gods, 3 villagers",
+        "roles": "Gods: Seer, Witch, Hunter"
+      },
+      "10": {
+        "title": "10 players",
+        "description": "2 wolves + WWK, 4 gods, 3 villagers",
+        "roles": "Gods: Seer, Witch, Hunter, Guard"
+      },
+      "11": {
+        "title": "11 players",
+        "description": "3 wolves + WWK, 5 gods, 2 villagers",
+        "roles": "Gods: Seer, Witch, Hunter, Guard, Idiot"
+      },
+      "12": {
+        "title": "12 players",
+        "description": "3 wolves + WWK, 5 gods, 3 villagers",
+        "roles": "Gods: Seer, Witch, Hunter, Guard, Idiot"
+      }
     },
     "genshinMode": {
       "title": "Model original mode",
@@ -451,8 +470,7 @@
         "idiot": "Survives a vote-out by revealing role, but loses voting rights"
       }
     }
-  }
-  ,
+  },
   "authModal": {
     "title": "Sign in or sign up",
     "description": "Sign in to access credits and share rewards.",
@@ -530,8 +548,7 @@
         "description": "Please check your inbox"
       }
     }
-  }
-  ,
+  },
   "resetPassword": {
     "title": "Reset password",
     "description": "Enter your new password. It must be at least 6 characters.",
@@ -563,8 +580,7 @@
         "description": "An unknown error occurred"
       }
     }
-  }
-  ,
+  },
   "accountModal": {
     "title": "Change password",
     "description": "Update your account password. It must be at least 6 characters.",
@@ -593,8 +609,7 @@
         "description": "An unknown error occurred"
       }
     }
-  }
-  ,
+  },
   "userProfile": {
     "title": "Account",
     "description": "View account details and actions",
@@ -621,8 +636,7 @@
         "description": "Clipboard is unavailable or permission denied"
       }
     }
-  }
-  ,
+  },
   "sharePanel": {
     "title": "Share link",
     "description": "Share this link with friends.",
@@ -636,8 +650,7 @@
       "copySuccess": "Share link copied",
       "copyFail": "Copy failed. Please copy manually."
     }
-  }
-  ,
+  },
   "bottomAction": {
     "cancel": "Cancel",
     "confirmVote": "Confirm vote: Seat {seat}",
@@ -660,15 +673,13 @@
       "whiteWolfKingBoom": "Self-destruct & take #{seat}",
       "whiteWolfKingBoomBtn": "Self-destruct"
     }
-  }
-  ,
+  },
   "mentions": {
     "playerLabel": "Seat {seat} {name}",
     "seatLabel": "Seat {seat}",
     "mention": "@Seat {seat}",
     "noMatch": "No matching players"
-  }
-  ,
+  },
   "common": {
     "you": "You",
     "listSeparator": ", ",
@@ -686,21 +697,18 @@
     "badgeHolder": "Sheriff",
     "badgeCandidate": "Candidate",
     "joining": "Joining..."
-  }
-  ,
+  },
   "voteResult": {
     "seatLabel": "Seat {seat}",
     "voteCount": "{count} votes"
-  }
-  ,
+  },
   "votingProgress": {
     "votedCount": "{voted}/{total} voted",
     "totalVotes": "Total {count}",
     "waiting": "Waiting for votes...",
     "waitingLabel": "Waiting:",
     "youSuffix": " (you)"
-  }
-  ,
+  },
   "persona": {
     "strategy": {
       "aggressive": "Aggressive",
@@ -716,8 +724,7 @@
     "background": "Background",
     "voiceStyle": "Voice style",
     "selfRole": "This is your role"
-  }
-  ,
+  },
   "tutorialModal": {
     "title": "Beginner Guide: How to Play Werewolf",
     "intro": "This is a faction game of hidden roles, reasoning, and table talk. Follow the system prompts and act or speak when it's your turn.",
@@ -775,8 +782,7 @@
     "actions": {
       "close": "Got it"
     }
-  }
-  ,
+  },
   "roleReveal": {
     "cardTitle": "Role card",
     "cardHint": "View privately",
@@ -1080,13 +1086,12 @@
         "task": "【Witch Skill】\nYou have one antidote (save) and one poison (kill), each once per game.\n\n【Important Rules】\n- Antidote can save the wolf's victim (including yourself)\n- Poison can kill any player (usually confirmed wolves)\n- One potion max per night\n- If guard and witch both save the same target (milk poison), they still die\n\n【Potion Status】\nAntidote: {healStatus} | Poison: {poisonStatus}\n\n【Tonight】\n{tonightInfo}\n\n【Task】\nDecide whether to use a potion.\n{saveLine}\n{poisonLine}\n- You may use no potion\n\nPoison targets: {poisonTargets}\n\n【Format】\nReturn a strict JSON object only. No code blocks, no explanations, no extra text.\nSave example: {saveJsonFormat}\nPoison example: {poisonJsonFormat}\nPass example: {passJsonFormat}",
         "user": "{context}\n\nWhat will you do? Return a strict JSON object."
       }
-    }
-    ,
+    },
     "badge": {
       "option": "Seat {seat} ({name})",
       "signup": {
         "base": "【Identity】\nYou are Seat {seat} \"{name}\"\nRole: {role}\n\n{winCondition}\n\n{persona}",
-        "task": "【Sheriff Badge】\nThe sheriff has 1.5 votes and can transfer the badge upon death. The sheriff leads discussions and consolidates votes.\n\n【Task】\nThis is the sheriff signup phase. Decide whether to run for sheriff.\n\n【Output format】\nReturn exactly one JSON object with no markdown, explanation, or extra text:\nRun: {\"signup\":true}\nSkip: {\"signup\":false}",
+        "task": "【Sheriff Badge】\nThe sheriff has 1.5 votes and can transfer the badge upon death. The sheriff leads discussions and consolidates votes.\n\n【Task】\nThis is the sheriff signup phase. Decide whether to run for sheriff.\n\n【Output format】\nReturn exactly one JSON object with no markdown, explanation, or extra text. The object has a single key signup with a boolean value: true if you run, false if you skip.",
         "user": "{context}\n\n【Today's discussion】\n{todayTranscript}\n\nDo you want to run for sheriff?",
         "noTranscript": "(None)"
       },
@@ -1131,32 +1136,85 @@
     "tiePk": "Execution tied. Enter PK speeches."
   },
   "phase": {
-    "lobby": { "description": "Ready to start" },
-    "setup": { "description": "Generating roles..." },
-    "nightStart": { "description": "Night falls" },
-    "nightGuard": { "description": "Guard in action", "human": "Tap a player card to choose who to protect" },
-    "nightWolf": { "description": "Werewolves in action", "human": "Tap a player card to choose a kill target" },
-    "nightWitch": { "description": "Witch in action", "human": "Use a potion?" },
-    "nightSeer": { "description": "Seer in action", "human": "Tap a player card to choose who to check" },
-    "nightResolve": { "description": "Day breaks" },
-    "dayStart": { "description": "Day begins" },
-    "badgeSignup": { "description": "Sheriff signup", "human": "Run for sheriff?" },
-    "badgeSpeech": { "description": "Sheriff speeches" },
+    "lobby": {
+      "description": "Ready to start"
+    },
+    "setup": {
+      "description": "Generating roles..."
+    },
+    "nightStart": {
+      "description": "Night falls"
+    },
+    "nightGuard": {
+      "description": "Guard in action",
+      "human": "Tap a player card to choose who to protect"
+    },
+    "nightWolf": {
+      "description": "Werewolves in action",
+      "human": "Tap a player card to choose a kill target"
+    },
+    "nightWitch": {
+      "description": "Witch in action",
+      "human": "Use a potion?"
+    },
+    "nightSeer": {
+      "description": "Seer in action",
+      "human": "Tap a player card to choose who to check"
+    },
+    "nightResolve": {
+      "description": "Day breaks"
+    },
+    "dayStart": {
+      "description": "Day begins"
+    },
+    "badgeSignup": {
+      "description": "Sheriff signup",
+      "human": "Run for sheriff?"
+    },
+    "badgeSpeech": {
+      "description": "Sheriff speeches"
+    },
     "badgeElection": {
       "description": "Sheriff election",
       "human": "Tap a player card to vote for sheriff",
       "noVote": "You're a candidate; no vote needed"
     },
-    "pkSpeech": { "description": "PK speeches" },
-    "daySpeech": { "description": "Discussion phase" },
+    "pkSpeech": {
+      "description": "PK speeches"
+    },
+    "daySpeech": {
+      "description": "Discussion phase"
+    },
     "speechYourTurn": "Your turn to speak",
-    "lastWords": { "description": "Last words" },
-    "dayVote": { "description": "Vote phase", "human": "Tap a player card to vote", "noVotePk": "You are in the PK; no vote needed", "noVoteIdiot": "Idiot revealed — no voting rights" },
-    "dayResolve": { "description": "Execution resolution" },
-    "badgeTransfer": { "description": "Sheriff badge transfer", "human": "Tap a player card to choose a transfer target" },
-    "hunterShoot": { "description": "Hunter shot", "human": "Tap a player card to choose your shot target" },
-    "whiteWolfKingBoom": { "description": "White Wolf King self-destruct", "human": "Tap a player card to choose self-destruct target" },
-    "gameEnd": { "description": "Game over", "villageWin": "Villagers win", "wolfWin": "Werewolves win" }
+    "lastWords": {
+      "description": "Last words"
+    },
+    "dayVote": {
+      "description": "Vote phase",
+      "human": "Tap a player card to vote",
+      "noVotePk": "You are in the PK; no vote needed",
+      "noVoteIdiot": "Idiot revealed — no voting rights"
+    },
+    "dayResolve": {
+      "description": "Execution resolution"
+    },
+    "badgeTransfer": {
+      "description": "Sheriff badge transfer",
+      "human": "Tap a player card to choose a transfer target"
+    },
+    "hunterShoot": {
+      "description": "Hunter shot",
+      "human": "Tap a player card to choose your shot target"
+    },
+    "whiteWolfKingBoom": {
+      "description": "White Wolf King self-destruct",
+      "human": "Tap a player card to choose self-destruct target"
+    },
+    "gameEnd": {
+      "description": "Game over",
+      "villageWin": "Villagers win",
+      "wolfWin": "Werewolves win"
+    }
   },
   "page": {
     "voteHelp": "How to vote?",
@@ -1309,7 +1367,10 @@
           "By day, disguise as good and mislead others"
         ],
         "action": "Tap a good player to choose a kill target",
-        "tips": ["Coordinate with teammates", "Sound good, but not perfect"]
+        "tips": [
+          "Coordinate with teammates",
+          "Sound good, but not perfect"
+        ]
       },
       "Seer": {
         "desc": "You can check a player’s true alignment.",
@@ -1318,7 +1379,10 @@
           "Share results in the day to guide votes"
         ],
         "action": "Tap a player to check",
-        "tips": ["Build trust before revealing", "Let others believe you're the seer"]
+        "tips": [
+          "Build trust before revealing",
+          "Let others believe you're the seer"
+        ]
       },
       "Witch": {
         "desc": "You have one antidote and one poison.",
@@ -1327,7 +1391,10 @@
           "Poison: eliminate any player (once)"
         ],
         "action": "Choose save, poison, or pass",
-        "tips": ["Potions are precious", "Wait when info is limited"]
+        "tips": [
+          "Potions are precious",
+          "Wait when info is limited"
+        ]
       },
       "Hunter": {
         "desc": "When you are eliminated, you may shoot one player.",
@@ -1336,7 +1403,10 @@
           "If you die or are banished, you can shoot one player"
         ],
         "action": "Tap a player to shoot",
-        "tips": ["Don’t reveal too early", "Decide carefully before you fall"]
+        "tips": [
+          "Don’t reveal too early",
+          "Decide carefully before you fall"
+        ]
       },
       "Guard": {
         "desc": "You can protect a player from a wolf kill.",
@@ -1345,7 +1415,10 @@
           "You cannot protect the same player two nights in a row"
         ],
         "action": "Tap a player to protect",
-        "tips": ["Guard key moments, not just key people", "Don’t reveal who you guarded"]
+        "tips": [
+          "Guard key moments, not just key people",
+          "Don’t reveal who you guarded"
+        ]
       },
       "Villager": {
         "desc": "You have no special power, but your judgment matters.",
@@ -1354,7 +1427,10 @@
           "Listen carefully, find logic gaps, and vote suspicious players"
         ],
         "action": "Tap a player to vote during voting phase",
-        "tips": ["Speak with evidence", "Think and listen more"]
+        "tips": [
+          "Speak with evidence",
+          "Think and listen more"
+        ]
       },
       "Idiot": {
         "desc": "Immune to exile once — flip your card and survive.",
@@ -1364,7 +1440,10 @@
           "After reveal, lose voting rights but can still speak"
         ],
         "action": "Tap a player to vote (before reveal)",
-        "tips": ["Speak boldly", "After reveal, influence through speech"]
+        "tips": [
+          "Speak boldly",
+          "After reveal, influence through speech"
+        ]
       },
       "WhiteWolfKing": {
         "desc": "King of wolves — self-destruct to take someone down.",
@@ -1374,7 +1453,10 @@
           "After self-destruct, skip to night immediately"
         ],
         "action": "Tap a player to kill at night; use self-destruct button during day",
-        "tips": ["Timing is everything", "Prioritize taking key roles"]
+        "tips": [
+          "Timing is everything",
+          "Prioritize taking key roles"
+        ]
       }
     }
   },
@@ -1910,8 +1992,8 @@
     "invalidSeat": "(invalid seat)",
     "tooManyRequests": "Too many requests, please try again later.",
     "badgeSignup": {
-      "systemPrompt": "Werewolf game assistant. Decide if each player runs for sheriff based on their role, personality, and any night-action context.\n\n【Randomness Requirements】\n- Do not treat any single choice as a fixed answer.\n- When outcomes are close, allow different choices while still respecting the player's team goal.\n- Let different personalities produce different tendencies.\n\nIMPORTANT: Return ONLY simple JSON:\n{\"seat_number\": true or false, ...}\n\nExample: {\"2\": true, \"3\": false, \"4\": true}\n\nNo other fields (no player_name, reason, etc). Only seat numbers and booleans.",
-      "userPrompt": "Players:\n{playerDescriptions}\n\nSeats: {seatList}\n\nReturn only JSON: {\"seat\": true/false, ...}",
+      "systemPrompt": "You are a Werewolf decision assistant. Decide whether each player should run for sheriff based on their role, personality, and night context.\n\n【Randomness】\n- Do not treat one choice as the fixed answer.\n- When payoffs are close, different choices are acceptable, but never against your faction's goal.\n- Let different personalities show different tendencies.\n\n【Important】Return exactly one JSON object. Keys are seat numbers (1-based); values are booleans indicating whether that seat runs for sheriff. Do not return any other fields (such as player name or reason).",
+      "userPrompt": "Players:\n{playerDescriptions}\n\nSeat numbers: {seatList}\n\nReturn only a JSON object: keys are seat numbers (1-based) and values are booleans indicating whether that seat runs for sheriff.",
       "playerDesc": "- Seat {seat} {name} ({role}): {personality}",
       "nightActionSuffix": ". Last night action: {action}",
       "noPersonality": "Normal personality",
@@ -2117,7 +2199,10 @@
       "showKey": "Show API Key",
       "hideKey": "Hide API Key",
       "entryAction": "Configure LLM gateway",
-      "connected": "LLM: {model}"
+      "connected": "LLM: {model}",
+      "maxTokens": "Max output tokens",
+      "maxTokensPlaceholder": "Empty = defaults (base profiles 6000+ / persona batch 7000)",
+      "maxTokensDesc": "When empty, defaults apply: base profiles = max(6000, players×450+1800) (7 players ≈6000, 10 ≈6300); persona batches & single retries = 7000; other actions leave it to the gateway. Set this to override all of them globally (6000–8000 recommended for thinking models). Reasoning tokens count against it, so a low value truncates replies (e.g. character generation parse failures)."
     },
     "dailyBonus": "Promo is currently unavailable.",
     "springCampaign": {
@@ -2359,7 +2444,7 @@
     "import": {
       "title": "Import characters",
       "description": "Paste JSON below. We'll import up to your remaining slots.",
-      "placeholder": "Paste JSON (array / single object / {\"characters\": [...]} are supported)",
+      "placeholder": "Paste JSON (array, single object, or object with a characters key)",
       "hint": "Remaining import slots: {count}",
       "confirm": "Import"
     },
@@ -2399,5 +2484,18 @@
     "recharge": "Buy Game Credits",
     "startGame": "Continue Playing",
     "startGameNoCredits": "Buy Game Credits"
+  },
+  "aiRetry": {
+    "guard": "Guard protecting",
+    "wolf": "Wolf choosing kill target",
+    "witch": "Witch using potion",
+    "seer": "Seer checking",
+    "dayVote": "Day vote",
+    "badgeSignup": "Badge signup",
+    "badgeVote": "Badge election vote",
+    "badgeTransfer": "Badge transfer",
+    "hunter": "Hunter shooting",
+    "wwkBoom": "White Wolf King boom",
+    "speech": "Public speech"
   }
 }

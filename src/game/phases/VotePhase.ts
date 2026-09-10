@@ -14,11 +14,13 @@ import {
 import { getI18n } from "@/i18n/translator";
 import {
   addSystemMessage,
+  AI_VOTE_ABSTAIN,
   checkWinCondition,
   generateAIVote,
   tallyVotes,
   transitionPhase,
 } from "@/lib/game-master";
+import { runAiTaskWithRetry } from "@/lib/ai-retry";
 import { getSystemMessages, getUiText } from "@/lib/game-texts";
 import { DELAY_CONFIG } from "@/lib/game-constants";
 import { delay, type FlowToken } from "@/lib/game-flow-controller";
@@ -82,6 +84,7 @@ export class VotePhase extends GamePhase {
 
   private async continueVoting(currentState: GameState, runtime: VotePhaseRuntime): Promise<void> {
     const { setGameState, setIsWaitingForAI, isTokenValid, token } = runtime;
+    const { t } = getI18n();
     // 恢复和新开轮次共用同一个循环；已有票（包括弃票）不能重投。
     // PK投票时，参与PK的人不能投票
     const pkTargets = currentState.pkSource === "vote" && Array.isArray(currentState.pkTargets) ? currentState.pkTargets : [];
@@ -104,7 +107,16 @@ export class VotePhase extends GamePhase {
           tokenInvalidated = true;
           break;
         }
-        const vote = await generateAIVote(currentState, aiPlayer);
+        const vote = await runAiTaskWithRetry<{ seat: number; reason: string }>({
+          label: t("aiRetry.dayVote"),
+          description: aiPlayer.displayName,
+          stillValid: stillCurrent,
+          task: () => generateAIVote(currentState, aiPlayer),
+          onSkip: () => ({
+            seat: AI_VOTE_ABSTAIN,
+            reason: t("gameMaster.voteFallback.apiFailedAbstain"),
+          }),
+        });
         if (!stillCurrent()) {
           tokenInvalidated = true;
           break;

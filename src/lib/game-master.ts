@@ -1157,7 +1157,8 @@ export async function generateAIVote(
       error: String(error),
     });
 
-    return fallbackResult;
+    // 抛给上层（VotePhase）做「重试 / 跳过」询问；跳过=沿用 abstain（弃票）
+    throw new Error(`[wolfcha] generateAIVote failed: ${String(error)}`);
   }
 }
 
@@ -1309,10 +1310,67 @@ export async function generateAIBadgeSignupBatch(
   );
   const startTime = Date.now();
 
+  // json_object 模式下模型可能自由发挥键名（signup / 报名竞选 / sherriff_candidacy…），
+  // 多键兼容解析，避免“报名=true”的意图被当成未报名。
+  const BADGE_SIGNUP_BOOL_KEYS = [
+    "signup",
+    "sign_up",
+    "signUp",
+    "sheriff_signup",
+    "sheriffSignup",
+    "sheriff_candidacy",
+    "candidacy",
+    "candidate",
+    "is_candidate",
+    "volunteer",
+    "run_for_sheriff",
+    "run",
+    "will_run",
+    "want",
+    "participate",
+    "decision",
+    "answer",
+    "choice",
+    "result",
+    "报名",
+    "报名竞选",
+    "是否报名",
+    "是否竞选",
+    "竞选",
+    "上警",
+  ];
   const parseBadgeSignupDecision = (content: string): boolean | null => {
     const cleaned = stripMarkdownCodeFences(String(content ?? "")).trim();
-    const parsed = parseLLMJson<{ signup?: unknown }>(cleaned);
-    return typeof parsed?.signup === "boolean" ? parsed.signup : null;
+    const parsed = parseLLMJson<Record<string, unknown>>(cleaned);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    for (const key of BADGE_SIGNUP_BOOL_KEYS) {
+      if (typeof parsed[key] === "boolean") return parsed[key];
+    }
+    // 兜底：模型把布尔塞进未知键时，取第一个布尔值
+    for (const value of Object.values(parsed)) {
+      if (typeof value === "boolean") return value;
+    }
+    // 兜底：纯文本意图（如 {"answer":"参加"} / {"decision":"yes"} / {"choice":"报名"}）
+    const intent = [
+      parsed.answer,
+      parsed.choice,
+      parsed.decision,
+      parsed.action,
+      parsed.result,
+      parsed.signup,
+      parsed["报名"],
+      parsed["报名竞选"],
+      parsed["是否报名"],
+    ]
+      .filter((v): v is string => typeof v === "string")
+      .map((v) => v.trim().toLowerCase());
+    if (intent.some((v) => ["yes", "y", "true", "参加", "报名", "竞选", "上警", "竞选警长", "报名竞选"].includes(v))) {
+      return true;
+    }
+    if (intent.some((v) => ["no", "n", "false", "不参加", "不报名", "不竞选", "不上警"].includes(v))) {
+      return false;
+    }
+    return null;
   };
 
   try {
@@ -1381,6 +1439,8 @@ export async function generateAIBadgeSignupBatch(
         })
       )
     );
+    // 抛给上层（useBadgePhase）做「重试 / 跳过」询问；跳过=未确认的候选一律不上警
+    throw new Error(`[wolfcha] generateAIBadgeSignupBatch failed: ${String(error)}`);
   }
 
   return parsedByPlayer;
@@ -1436,7 +1496,7 @@ export async function generateAIBadgeVote(
 
     return parsedSeat;
   } catch (error) {
-    // Network/API error: treat as abstain so the phase does not get stuck
+    // Network/API error: 抛给上层（useBadgePhase）做「重试 / 跳过」询问；跳过=沿用 abstain
     console.warn("[wolfcha] generateAIBadgeVote failed, treating as abstain:", error);
     await aiLogger.log({
       type: "badge_vote",
@@ -1448,7 +1508,7 @@ export async function generateAIBadgeVote(
       response: { content: "", duration: Date.now() - startTime },
       error: String(error),
     });
-    return BADGE_VOTE_ABSTAIN;
+    throw new Error(`[wolfcha] generateAIBadgeVote failed: ${String(error)}`);
   }
 }
 
@@ -1546,7 +1606,8 @@ export async function generateBadgeTransfer(
       },
       error: String(error),
     });
-    return BADGE_TRANSFER_TORN;
+    // 抛给上层（useBadgePhase）做「重试 / 跳过」询问；跳过=沿用撕徽
+    throw new Error(`[wolfcha] generateBadgeTransfer failed: ${String(error)}`);
   }
 }
 
@@ -1614,7 +1675,8 @@ export async function generateSeerAction(
       },
       error: String(error),
     });
-    return undefined;
+    // 抛给上层（NightPhase）做「重试 / 跳过」询问；跳过=沿用 undefined（不查验）
+    throw new Error(`[wolfcha] generateSeerAction failed: ${String(error)}`);
   }
 }
 
@@ -1679,7 +1741,8 @@ export async function generateWolfAction(
       },
       error: String(error),
     });
-    return undefined;
+    // 抛给上层（NightPhase）做「重试 / 跳过」询问；跳过=沿用 undefined（不行动）
+    throw new Error(`[wolfcha] generateWolfAction failed: ${String(error)}`);
   }
 }
 
@@ -1778,7 +1841,8 @@ export async function generateWitchAction(
       },
       error: String(error),
     });
-    return passAction;
+    // 抛给上层（NightPhase）做「重试 / 跳过」询问；跳过=沿用 pass（不用药）
+    throw new Error(`[wolfcha] generateWitchAction failed: ${String(error)}`);
   }
 }
 
@@ -1849,7 +1913,8 @@ export async function generateGuardAction(
       },
       error: String(error),
     });
-    return undefined;
+    // 抛给上层（NightPhase）做「重试 / 跳过」询问；跳过=沿用 undefined（不守护）
+    throw new Error(`[wolfcha] generateGuardAction failed: ${String(error)}`);
   }
 }
 
@@ -1932,7 +1997,8 @@ export async function generateHunterShoot(
       },
       error: String(error),
     });
-    return null;
+    // 抛给上层（useSpecialEvents）做「重试 / 跳过」询问；跳过=不开枪
+    throw new Error(`[wolfcha] generateHunterShoot failed: ${String(error)}`);
   }
 }
 
@@ -2025,7 +2091,8 @@ export async function generateWhiteWolfKingBoomDecision(
       },
       error: String(error),
     });
-    return null;
+    // 抛给上层（useGameLogic）做「重试 / 跳过」询问；跳过=不自爆
+    throw new Error(`[wolfcha] generateWhiteWolfKingBoomDecision failed: ${String(error)}`);
   }
 }
 

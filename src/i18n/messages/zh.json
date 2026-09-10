@@ -1091,7 +1091,7 @@
       "option": "{seat}号({name})",
       "signup": {
         "base": "【身份】\n你是 {seat}号「{name}」\n身份: {role}\n\n{winCondition}\n\n{persona}",
-        "task": "【警徽竞选说明】\n警长拥有 1.5 票投票权，死亡时可移交警徽给信任的玩家。警长负责归票和引导讨论方向。\n\n【任务】\n现在是警徽竞选报名环节。请根据当前局势决定是否报名竞选警长。\n\n【输出格式】\n严格返回 JSON 对象，不要代码块，不要解释，不要多余文字：\n报名：{\"signup\":true}\n不报名：{\"signup\":false}",
+        "task": "【警徽竞选说明】\n警长拥有 1.5 票投票权，死亡时可移交警徽给信任的玩家。警长负责归票和引导讨论方向。\n\n【任务】\n现在是警徽竞选报名环节。请根据当前局势决定是否报名竞选警长。\n\n【输出格式】\n只返回一个 JSON 对象，不要代码块、不要解释、不要多余文字。对象只有一个键 signup，值为布尔：报名填 true，不报名填 false。",
         "user": "{context}\n\n【本日讨论记录】\n{todayTranscript}\n\n是否报名竞选警长？",
         "noTranscript": "（无）"
       },
@@ -1992,8 +1992,8 @@
     "invalidSeat": "（座位无效）",
     "tooManyRequests": "（请求过于频繁，稍后再试）",
     "badgeSignup": {
-      "systemPrompt": "你是狼人杀游戏的决策助手。根据每位玩家的角色、性格以及夜间行动等上下文，自行判断是否上警。\n\n【随机性要求】\n- 不要把某一种选择当作固定答案。\n- 收益接近时，可以做出不同选择，但不要违背阵营目标。\n- 让不同性格的玩家体现出不同倾向。\n\n【重要】只返回简单的 JSON 对象，格式严格为：\n{\"座位号\": true或false, ...}\n\n例如：{\"2\": true, \"3\": false, \"4\": true}\n\n不要返回任何其他字段（如player_name、reason等），只需要座位号和布尔值。",
-      "userPrompt": "玩家信息：\n{playerDescriptions}\n\n座位号：{seatList}\n\n只返回 JSON：{\"座位号\": true/false, ...}",
+      "systemPrompt": "你是狼人杀游戏的决策助手。根据每位玩家的角色、性格以及夜间行动等上下文，自行判断是否上警。\n\n【随机性要求】\n- 不要把某一种选择当作固定答案。\n- 收益接近时，可以做出不同选择，但不要违背阵营目标。\n- 让不同性格的玩家体现出不同倾向。\n\n【重要】只返回一个 JSON 对象。对象的键是座位号（1 开始），值为布尔：该座位是否报名上警。不要返回任何其它字段（如玩家名、理由等）。",
+      "userPrompt": "玩家信息：\n{playerDescriptions}\n\n座位号：{seatList}\n\n只返回 JSON 对象：键为座位号（1 开始），值为布尔，表示该座位是否上警。",
       "playerDesc": "- {seat}号位 {name}（{role}）：{personality}",
       "nightActionSuffix": "。昨晚行动：{action}",
       "noPersonality": "普通性格",
@@ -2199,7 +2199,10 @@
       "showKey": "显示 API Key",
       "hideKey": "隐藏 API Key",
       "entryAction": "配置 LLM 网关",
-      "connected": "LLM: {model}"
+      "connected": "LLM: {model}",
+      "maxTokens": "最大输出 Tokens",
+      "maxTokensPlaceholder": "留空 = 用默认值（角色基础档案 6000+ / 人设批次 7000）",
+      "maxTokensDesc": "留空时按调用默认：角色基础档案 = max(6000, 人数×450+1800)（7 人局≈6000、10 人局≈6300）；人设批次与单发补生成 = 7000；其余行动调用不设上限、由网关决定。填了会全局覆盖以上默认（建议 thinking 模型填 6000–8000）。注意推理 token 也计入该预算，设太小会截断导致“角色生成解析失败”。"
     },
     "dailyBonus": "活动暂不可用。",
     "springCampaign": {
@@ -2441,7 +2444,7 @@
     "import": {
       "title": "导入角色",
       "description": "把 JSON 粘贴到下面，确认后会按剩余名额导入。",
-      "placeholder": "粘贴 JSON（数组 / 单个对象 / {\"characters\": [...]} 都支持）",
+      "placeholder": "粘贴 JSON（支持数组、单个对象、或含 characters 键的对象）",
       "hint": "剩余可导入名额：{count}",
       "confirm": "开始导入"
     },
@@ -2481,5 +2484,18 @@
     "recharge": "充值游戏额度",
     "startGame": "继续开始游戏",
     "startGameNoCredits": "充值游戏额度"
+  },
+  "aiRetry": {
+    "guard": "守卫守护",
+    "wolf": "狼人选择击杀目标",
+    "witch": "女巫决定是否用药",
+    "seer": "预言家查验",
+    "dayVote": "白天投票",
+    "badgeSignup": "竞选警长",
+    "badgeVote": "警徽投票",
+    "badgeTransfer": "移交警徽",
+    "hunter": "猎人开枪",
+    "wwkBoom": "白狼王自爆",
+    "speech": "公开发言"
   }
 }

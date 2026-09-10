@@ -17,7 +17,9 @@ import {
   generateWitchAction,
   generateWolfAction,
   transitionPhase as rawTransitionPhase,
+  type WitchAction,
 } from "@/lib/game-master";
+import { runAiTaskWithRetry } from "@/lib/ai-retry";
 import { getSystemMessages, getUiText } from "@/lib/game-texts";
 import { DELAY_CONFIG } from "@/lib/game-constants";
 import {
@@ -141,7 +143,13 @@ export class NightPhase extends GamePhase {
       return currentState;
     }
 
-    const guardTarget = await generateGuardAction(currentState, guard);
+    const guardTarget = await runAiTaskWithRetry<number | undefined>({
+      label: t("aiRetry.guard"),
+      description: `${guard.displayName}`,
+      stillValid: () => runtime.isTokenValid(runtime.token),
+      task: () => generateGuardAction(currentState, guard),
+      onSkip: () => undefined,
+    });
     await runtime.waitForUnpause();
 
     if (!runtime.isTokenValid(runtime.token)) return currentState;
@@ -201,38 +209,35 @@ export class NightPhase extends GamePhase {
       }
 
       const wolfVotes: Record<string, number> = {};
-      try {
-        // 简化逻辑：第一个狼人决定目标，其他狼人自动达成共识
-        const firstWolf = wolves[0];
-        const targetSeat = await generateWolfAction(currentState, firstWolf, {});
-        
-        await runtime.waitForUnpause();
-        if (!runtime.isTokenValid(runtime.token)) return currentState;
-        
-        if (targetSeat !== undefined) {
-          // 所有狼人投票给同一个目标
-          for (const wolf of wolves) {
-            wolfVotes[wolf.playerId] = targetSeat;
-          }
-        }
+      // 简化逻辑：第一个狼人决定目标，其他狼人自动达成共识
+      const firstWolf = wolves[0];
+      const targetSeat = await runAiTaskWithRetry<number | undefined>({
+        label: t("aiRetry.wolf"),
+        description: `${firstWolf.displayName}`,
+        stillValid: () => runtime.isTokenValid(runtime.token),
+        task: () => generateWolfAction(currentState, firstWolf, {}),
+        onSkip: () => undefined,
+      });
 
-        currentState = {
-          ...currentState,
-          nightActions: {
-            ...currentState.nightActions,
-            wolfVotes,
-            ...(targetSeat !== undefined ? { wolfTarget: targetSeat } : {}),
-          },
-        };
-        runtime.setGameState(currentState);
-      } catch (error) {
-        console.error("[wolfcha] AI wolf vote failed:", error);
-        currentState = {
-          ...currentState,
-          nightActions: { ...currentState.nightActions, wolfVotes },
-        };
-        runtime.setGameState(currentState);
+      await runtime.waitForUnpause();
+      if (!runtime.isTokenValid(runtime.token)) return currentState;
+
+      if (targetSeat !== undefined) {
+        // 所有狼人投票给同一个目标
+        for (const wolf of wolves) {
+          wolfVotes[wolf.playerId] = targetSeat;
+        }
       }
+
+      currentState = {
+        ...currentState,
+        nightActions: {
+          ...currentState.nightActions,
+          wolfVotes,
+          ...(targetSeat !== undefined ? { wolfTarget: targetSeat } : {}),
+        },
+      };
+      runtime.setGameState(currentState);
 
       runtime.setIsWaitingForAI(false);
 
@@ -272,7 +277,13 @@ export class NightPhase extends GamePhase {
       return currentState;
     }
 
-    const witchAction = await generateWitchAction(currentState, witch, currentState.nightActions.wolfTarget);
+    const witchAction = await runAiTaskWithRetry<WitchAction>({
+      label: t("aiRetry.witch"),
+      description: `${witch.displayName}`,
+      stillValid: () => runtime.isTokenValid(runtime.token),
+      task: () => generateWitchAction(currentState, witch, currentState.nightActions.wolfTarget),
+      onSkip: () => ({ type: "pass" }),
+    });
     await runtime.waitForUnpause();
 
     if (!runtime.isTokenValid(runtime.token)) return currentState;
@@ -327,7 +338,13 @@ export class NightPhase extends GamePhase {
       return currentState;
     }
 
-    const targetSeat = await generateSeerAction(currentState, seer);
+    const targetSeat = await runAiTaskWithRetry<number | undefined>({
+      label: t("aiRetry.seer"),
+      description: `${seer.displayName}`,
+      stillValid: () => runtime.isTokenValid(runtime.token),
+      task: () => generateSeerAction(currentState, seer),
+      onSkip: () => undefined,
+    });
     if (!runtime.isTokenValid(runtime.token)) return currentState;
 
     if (targetSeat === undefined) {

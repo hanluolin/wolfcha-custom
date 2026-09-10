@@ -56,12 +56,44 @@ pnpm dev
 
 Open [http://localhost:3000](http://localhost:3000). Click **Configure LLM gateway** and enter your own OpenAI-compatible API URL, key, and model. Everything runs in the browser — no accounts, credits, or backend server.
 
-To package a static build (e.g. for a Capacitor/WebView APK):
+## Building an Android APK
+
+The mobile app is a [Capacitor](https://capacitorjs.com/) shell that loads the static
+export from `./out`. You need Node.js + pnpm and [Android Studio](https://developer.android.com/studio)
+(it provides both the Android SDK and a bundled JDK).
 
 ```bash
+# 1. Build the static web bundle into ./out
 pnpm build
-# Static files are emitted to ./out
+
+# 2. Copy it into the Android project
+npx cap sync android
+
+# 3. Build the debug APK
+cd android
+JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
+  ANDROID_HOME="$HOME/Library/Android/sdk" \
+  ./gradlew assembleDebug
 ```
+
+The APK is written to `android/app/build/outputs/apk/debug/app-debug.apk`. Install it
+on a connected device with:
+
+```bash
+adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+Notes:
+
+- Adjust `JAVA_HOME` (JDK 21+) and `ANDROID_HOME` if your paths differ; you can also
+  run `npx cap open android` and build from Android Studio.
+- SDK versions live in `android/variables.gradle` (`compileSdk` / `targetSdk`) and
+  `android/app/build.gradle` (`buildToolsVersion`) — change them to match the
+  components you have installed.
+- `app-debug.apk` is signed with the debug key, which is fine for sideloading;
+  store releases need a release keystore.
+
+For a plain static export without the Android shell, `pnpm build` alone emits `./out`.
 
 ## Tech stack
 

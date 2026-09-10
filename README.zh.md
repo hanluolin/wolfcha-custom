@@ -58,12 +58,41 @@ pnpm dev
 OpenAI 兼容 API 地址、Key 与模型名即可开局。游戏在浏览器内直连模型，无需登录、
 积分或自建服务端。
 
-打包纯静态 APK 前运行：
+## 打包 Android APK
+
+移动端是 Capacitor 套壳，加载 `./out` 里的静态产物。需要 Node.js + pnpm，以及
+[Android Studio](https://developer.android.com/studio)（提供 Android SDK 和自带 JDK）。
 
 ```bash
+# 1. 构建静态产物到 ./out
 pnpm build
-# 静态文件输出到 ./out
+
+# 2. 同步到 Android 工程
+npx cap sync android
+
+# 3. 构建 debug APK
+cd android
+JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
+  ANDROID_HOME="$HOME/Library/Android/sdk" \
+  ./gradlew assembleDebug
 ```
+
+APK 产物在 `android/app/build/outputs/apk/debug/app-debug.apk`，安装到已连接的手机：
+
+```bash
+adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+注意事项：
+
+- 上面的 `JAVA_HOME`（需要 JDK 21+）和 `ANDROID_HOME` 按本机实际安装路径调整；也可以
+  `npx cap open android` 用 Android Studio 构建。
+- SDK 版本写在 `android/variables.gradle`（`compileSdk` / `targetSdk`）和
+  `android/app/build.gradle`（`buildToolsVersion`），按本机已安装的组件修改。
+- `app-debug.apk` 使用调试证书签名，适合自己侧载安装；上架应用商店需要另行配置
+  release 签名。
+
+只想拿纯静态站点（不打包 APK）时，运行 `pnpm build` 即可，产物在 `./out`。
 
 ## 技术栈
 

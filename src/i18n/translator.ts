@@ -18,16 +18,14 @@ export const getI18n = (locale?: AppLocale) => {
   const t: typeof rawT = ((key: string, values?: Record<string, unknown>) => {
     try {
       const result = rawT(key as Parameters<typeof rawT>[0], values as Parameters<typeof rawT>[1]);
-      // If result equals the key, translation failed
-      if (result === key && process.env.NODE_ENV !== "production") {
-        console.warn("[i18n] Translation missing or failed for key:", key, "locale:", activeLocale);
+      // If result equals the key, translation failed（如模板含非法 ICU 花括号会走 catch）
+      if (result === key) {
+        console.error("[i18n] Translation missing or failed for key:", key, "locale:", activeLocale);
       }
       return result;
     } catch (err) {
       // ICU message format errors (INVALID_MESSAGE, MALFORMED_ARGUMENT, etc.)
-      if (process.env.NODE_ENV !== "production") {
-        console.error("[i18n] Translation error for key:", key, "locale:", activeLocale, "error:", err);
-      }
+      console.error("[i18n] Translation error for key:", key, "locale:", activeLocale, "error:", err);
       // Return key as fallback to prevent crash
       return key;
     }

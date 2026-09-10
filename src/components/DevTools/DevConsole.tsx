@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
 import { useTranslations } from "next-intl";
 import { useAtom } from "jotai";
 import { motion, AnimatePresence } from "framer-motion";
@@ -1983,35 +1984,129 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-// ============ 悬浮入口按钮 ============
+// ============ 悬浮入口按钮（可拖动） ============
+const DEV_BUTTON_POS_KEY = "wolfcha_devtools_pos";
+const DEV_BUTTON_PAD = 8;
+
+type DevButtonPos = { x: number; y: number };
+
+function readDevButtonPos(): DevButtonPos | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(DEV_BUTTON_POS_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { x?: unknown; y?: unknown };
+    return typeof parsed.x === "number" && typeof parsed.y === "number"
+      ? { x: parsed.x, y: parsed.y }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
 export function DevModeButton({ onClick }: { onClick: () => void }) {
   const t = useTranslations();
-  const router = useRouter();
+  // 所有环境（dev / 生产静态包 / APK）都显示；构建时设 NEXT_PUBLIC_SHOW_DEVTOOLS=false 可关闭。
   const showDevTools =
-    process.env.NODE_ENV !== "production" && (process.env.NEXT_PUBLIC_SHOW_DEVTOOLS ?? "true") === "true";
+    (process.env.NEXT_PUBLIC_SHOW_DEVTOOLS ?? "true") === "true";
+  const [pos, setPos] = useState<DevButtonPos | null>(() => readDevButtonPos());
+  const dragRef = useRef<{
+    startX: number;
+    startY: number;
+    baseX: number;
+    baseY: number;
+    moved: boolean;
+  } | null>(null);
+  const [dragging, setDragging] = useState(false);
 
   if (!showDevTools) return null;
 
-  const handleTestAnalysis = () => {
-    router.push("/test-analysis");
+  const persistPos = (next: DevButtonPos | null) => {
+    try {
+      if (next) window.localStorage.setItem(DEV_BUTTON_POS_KEY, JSON.stringify(next));
+      else window.localStorage.removeItem(DEV_BUTTON_POS_KEY);
+    } catch {
+      // ignore storage errors
+    }
+  };
+
+  const onPointerDown = (e: ReactPointerEvent<HTMLButtonElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      baseX: pos?.x ?? window.innerWidth - rect.width - DEV_BUTTON_PAD,
+      baseY: pos?.y ?? window.innerHeight - rect.height - DEV_BUTTON_PAD,
+      moved: false,
+    };
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  };
+
+  const onPointerMove = (e: ReactPointerEvent<HTMLButtonElement>) => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    const dx = e.clientX - drag.startX;
+    const dy = e.clientY - drag.startY;
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+      drag.moved = true;
+      setDragging(true);
+    }
+    if (!drag.moved) return;
+    const size = 48; // w-12
+    const maxX = window.innerWidth - size - DEV_BUTTON_PAD;
+    const maxY = window.innerHeight - size - DEV_BUTTON_PAD;
+    const next: DevButtonPos = {
+      x: clamp(drag.baseX + dx, DEV_BUTTON_PAD, maxX),
+      y: clamp(drag.baseY + dy, DEV_BUTTON_PAD, maxY),
+    };
+    setPos(next);
+  };
+
+  const onPointerUp = () => {
+    if (dragRef.current) {
+      if (dragRef.current.moved && pos) persistPos(pos);
+      // 保留 dragRef 到 click 判定后清理
+    }
+    setDragging(false);
+  };
+
+  const handleClick = () => {
+    const drag = dragRef.current;
+    if (drag?.moved) {
+      dragRef.current = null;
+      return;
+    }
+    dragRef.current = null;
+    onClick();
   };
 
   return (
-    <div className="fixed bottom-5 right-5 z-[99] flex flex-col gap-2">
-      <button
-        onClick={handleTestAnalysis}
-        className="w-12 h-12 rounded-full bg-emerald-500 hover:bg-emerald-400 shadow-lg flex items-center justify-center transition-all hover:scale-110"
-        title="测试复盘报告"
-      >
-        <ChartBar size={24} className="text-gray-900" />
-      </button>
-      <button
-        onClick={onClick}
-        className="w-12 h-12 rounded-full bg-yellow-500 hover:bg-yellow-400 shadow-lg flex items-center justify-center transition-all hover:scale-110"
-        title={t("devConsole.devMode")}
-      >
-        <Wrench size={24} className="text-gray-900" />
-      </button>
-    </div>
+    <button
+      type="button"
+      onClick={handleClick}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={() => {
+        dragRef.current = null;
+        setDragging(false);
+      }}
+      className={`w-12 h-12 rounded-full bg-yellow-500 hover:bg-yellow-400 shadow-lg flex items-center justify-center transition-shadow hover:shadow-xl cursor-grab touch-none select-none z-[99] ${
+        dragging ? "shadow-2xl opacity-90" : ""
+      }`}
+      style={
+        pos
+          ? { position: "fixed", left: pos.x, top: pos.y }
+          : { position: "fixed", right: DEV_BUTTON_PAD, bottom: DEV_BUTTON_PAD }
+      }
+      title={`${t("devConsole.devMode")}（可拖动）`}
+      aria-label={t("devConsole.devMode")}
+    >
+      <Wrench size={24} className="text-gray-900 pointer-events-none" />
+    </button>
   );
 }

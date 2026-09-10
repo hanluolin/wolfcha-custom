@@ -12,9 +12,8 @@ const LOCAL_LOGS_STORAGE_KEY = "wolfcha_ai_logs";
 const AI_LOGGER_PAGE_LOAD_CLEAR_FLAG = "__wolfcha_ai_logger_page_load_cleared__";
 
 function canUseStorage(): boolean {
-  return process.env.NODE_ENV !== "production" &&
-    typeof window !== "undefined" &&
-    typeof window.localStorage !== "undefined";
+  // 日志供 DevConsole 使用：所有环境（dev / 生产静态包 / APK）都持久化到 localStorage
+  return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
 }
 
 export interface AILogEntry {

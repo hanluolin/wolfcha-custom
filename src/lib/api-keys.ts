@@ -20,6 +20,7 @@ const OPENAI_THINKING_STORAGE = "wolfcha_openai_thinking_enabled";
 const OPENAI_EFFORT_STORAGE = "wolfcha_openai_reasoning_effort";
 const OPENAI_REASONING_STYLE_STORAGE = "wolfcha_openai_reasoning_style";
 const OPENAI_JSON_OBJECT_STORAGE = "wolfcha_openai_json_object_enabled";
+const OPENAI_MAX_TOKENS_STORAGE = "wolfcha_openai_max_tokens";
 const OPENAI_DIRECT_STORAGE = "wolfcha_openai_direct";
 const MODEL_SOURCE_STORAGE = "wolfcha_model_source";
 const MINIMAX_API_KEY_STORAGE = "wolfcha_minimax_api_key";
@@ -118,6 +119,24 @@ export function getOpenAIJsonObjectEnabled(): boolean {
 
 export function setOpenAIJsonObjectEnabled(enabled: boolean) {
   writeStorage(OPENAI_JSON_OBJECT_STORAGE, enabled ? "true" : "false");
+}
+
+/** 全局最大输出 tokens（可覆盖各调用默认值）；未配置返回 null。thinking 类模型会把推理 token 计入该预算。 */
+export function getOpenAIMaxTokens(): number | null {
+  const raw = readStorage(OPENAI_MAX_TOKENS_STORAGE);
+  if (!raw) return null;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+/** 保存全局最大输出 tokens；传空串/非法值表示清空（使用各调用默认）。 */
+export function setOpenAIMaxTokens(value: string) {
+  const parsed = Number.parseInt(String(value ?? "").trim(), 10);
+  if (Number.isFinite(parsed) && parsed > 0) {
+    writeStorage(OPENAI_MAX_TOKENS_STORAGE, String(parsed));
+  } else {
+    writeStorage(OPENAI_MAX_TOKENS_STORAGE, "");
+  }
 }
 
 export function getOpenAIProxyEnabled(): boolean {
@@ -261,6 +280,7 @@ export function clearApiKeys() {
   window.localStorage.removeItem(OPENAI_EFFORT_STORAGE);
   window.localStorage.removeItem(OPENAI_REASONING_STYLE_STORAGE);
   window.localStorage.removeItem(OPENAI_JSON_OBJECT_STORAGE);
+  window.localStorage.removeItem(OPENAI_MAX_TOKENS_STORAGE);
   window.localStorage.removeItem(OPENAI_DIRECT_STORAGE);
   window.localStorage.removeItem(MINIMAX_API_KEY_STORAGE);
   window.localStorage.removeItem(MINIMAX_GROUP_ID_STORAGE);
