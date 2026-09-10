@@ -49,3 +49,4 @@ android/
 
 # windsurf rules (local only)
 .windsurf/rules/renewlog.md
+.workbuddy/

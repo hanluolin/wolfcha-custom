@@ -1,3 +1,17 @@
+> **Derivative work · Thanks to the original authors**
+>
+> This project is a **derivative work built on [`oil-oil/wolfcha`](https://github.com/oil-oil/wolfcha)**.
+> All credit for the original concept, design, and implementation goes to the upstream authors and contributors —
+> thank you for building and open-sourcing it.
+> Upstream repository: <https://github.com/oil-oil/wolfcha>
+
+> **What changed in this fork**
+>
+> - **Backend and config files removed** — no `.env`, no Supabase, no server-side API, no self-hosted service, and no environment variables at all. `pnpm build` emits a pure static site you can drop into Capacitor, a WebView, or any static host.
+> - **Everything is configured in the UI** — open the app, click **Configure LLM gateway**, and enter your own OpenAI-compatible API URL, key, and model name. No code edits, no rebuild, no `.env`.
+> - **Your key never leaves your browser** — settings are stored in your own `localStorage`, and requests go **straight from your browser** to the gateway you configured. Nothing passes through the deployer's server, so there is no key collection or leak risk.
+> - **Deep-thinking mode supported** — toggle reasoning on or off and pick a thinking depth (minimal / low / medium / high) for models that accept `reasoning_effort`.
+
 # Wolfcha
 
 <div align="center">

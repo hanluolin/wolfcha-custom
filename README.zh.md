@@ -1,3 +1,16 @@
+> **二次开发作品 · 感谢原作者**
+>
+> 本项目是基于 [`oil-oil/wolfcha`](https://github.com/oil-oil/wolfcha) 的**二次开发**版本，
+> 原项目的创意、设计与实现全部归功于上游作者及贡献者，感谢他们的开源与分享。
+> 上游仓库：<https://github.com/oil-oil/wolfcha>
+
+> **本仓库做了什么改动**
+>
+> - **移除后端与配置文件**：不再需要 `.env`、Supabase、服务端 API 或任何自建服务，也无需任何环境变量。`pnpm build` 直接产出纯静态站点，可以丢进 Capacitor / WebView / 任意静态托管。
+> - **模型配置全部在 UI 界面里完成**：打开应用后点「配置 LLM 网关」，填入自己的 OpenAI 兼容 API 地址、Key 与模型名即可开局，不用改代码、不用重新编译、不用配 `.env`。
+> - **Key 只存在你自己的浏览器里**：配置写入本机 `localStorage`，请求由浏览器**直连**你填写的网关，不经过部署方的服务器，因此不存在 Key 被收集或泄漏的风险。
+> - **支持深度思考模式**：可开关思考（thinking）并为支持的模型选择思考深度（minimal / low / medium / high）。
+
 <p align="right"><a href="./README.md">English</a></p>
 
 ![Wolfcha 猹杀 — 一个人也能玩狼人杀](assets/readme/hero-zh.png)
