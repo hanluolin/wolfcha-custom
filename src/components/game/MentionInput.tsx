@@ -291,6 +291,18 @@ export function MentionInput({
     editor.commands.setContent(value || "", { emitUpdate: false });
   }, [value, editor]);
 
+  // 外部（如「AI 助我」草稿）把空输入框填上内容时，把光标落到末尾方便继续改。
+  // isFocused 判断保证玩家自己敲第一个字时不会被打断、光标也不会被挪到末尾。
+  const prevValueRef = useRef(value);
+  useEffect(() => {
+    if (!editor) return;
+    const prev = prevValueRef.current;
+    prevValueRef.current = value;
+    if (prev === "" && value.trim() !== "" && !editor.isFocused) {
+      editor.commands.focus("end");
+    }
+  }, [value, editor]);
+
   useEffect(() => {
     return () => {
       if (holdTimerRef.current) {
@@ -313,7 +325,8 @@ export function MentionInput({
       {(!value || value.trim().length === 0) && placeholder ? (
         <div
           className={
-            "pointer-events-none absolute left-0 top-0 text-base " +
+            // line-clamp-2：placeholder 现在带一句用法说明，最多两行，避免画到输入框外面
+            "pointer-events-none absolute left-0 top-0 text-base line-clamp-2 " +
             (isNight ? "text-white/35" : "text-[var(--text-secondary)]")
           }
         >

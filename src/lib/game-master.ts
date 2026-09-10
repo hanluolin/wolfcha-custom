@@ -20,7 +20,7 @@ import {
 import { GAME_TEMPERATURE } from "./ai-config";
 import { sampleModelRefs, type GeneratedCharacter } from "./character-generator";
 import { aiLogger } from "./ai-logger";
-import { getGeneratorModel, getSummaryModel } from "@/lib/api-keys";
+import { getGeneratorModel, getOpenAIModel, getSummaryModel } from "@/lib/api-keys";
 import { PhaseManager } from "@/game/core/PhaseManager";
 import type { PromptResult } from "@/game/core/types";
 import { buildCachedSystemMessageFromParts } from "./prompt-utils";
@@ -859,6 +859,107 @@ export async function generateAISpeechSegments(
       return [fallback];
     }
 
+    throw error;
+  }
+}
+
+export interface HumanSpeechSuggestionOptions {
+  signal?: AbortSignal;
+  /** 玩家自己已经打了一半的想法：作为改写方向附加，而不是被直接覆盖。 */
+  hint?: string;
+}
+
+/**
+ * 人类玩家「AI 助我」草稿。
+ *
+ * 刻意复用该阶段 AI 发言的提示词与公开段落解析器，好处是：
+ * - 可见性一致：传给模型的上下文与"这名玩家若由 AI 托管"完全相同，
+ *   只包含该座位视角内合法的信息（buildGameContext / buildPublicFactsForPlayer 均为按玩家裁剪）；
+ * - 协议一致：输出仍走 StreamingSpeechParser + 净化，格式不合法的响应直接抛错，
+ *   绝不会把半截发言或模型的私有分析塞进玩家的输入框。
+ *
+ * 返回值只是草稿文本：是否发送仍由玩家自己决定（调用方不得代替玩家发送）。
+ */
+export async function generateHumanSpeechSuggestion(
+  state: GameState,
+  player: Player,
+  options: HumanSpeechSuggestionOptions = {}
+): Promise<string> {
+  options.signal?.throwIfAborted();
+  const { t } = getI18n();
+  const prompt = resolvePhasePrompt(state.phase, state, player);
+  const { messages } = buildMessagesForPrompt(prompt);
+  const hint = options.hint?.trim();
+  if (hint) {
+    messages.push({ role: "user", content: t("prompts.aiAssist.hint", { hint }) });
+  }
+
+  const request = {
+    model: getOpenAIModel(),
+    messages,
+    player: {
+      playerId: player.playerId,
+      displayName: player.displayName,
+      seat: player.seat,
+      role: player.role,
+    },
+  };
+  const startTime = Date.now();
+  let logged = false;
+
+  try {
+    const result = await generateCompletion({
+      model: getOpenAIModel(),
+      messages,
+      promptScope: "gameplay",
+      temperature: GAME_TEMPERATURE.SPEECH,
+      signal: options.signal,
+    });
+
+    let parseError: string | undefined;
+    const parser = new StreamingSpeechParser({ onError: (error) => { parseError = error; } });
+    parser.processChunk(result.content);
+    const segments = parser
+      .end()
+      .map((segment) => sanitizeSeatMentions(sanitizeModelArtifacts(segment), state.players))
+      .filter(Boolean);
+
+    const draft = segments.join("\n").trim();
+    if (!draft) {
+      // 解析失败/空响应：这是系统侧失败，不能把半截内容当成玩家台词。
+      await aiLogger.log({
+        type: "speech",
+        request,
+        response: { content: "", raw: result.content, duration: Date.now() - startTime },
+        error: parseError ?? "empty_speech_suggestion",
+      });
+      logged = true;
+      throw new Error(t("dialog.input.aiAssistFailed"));
+    }
+
+    await aiLogger.log({
+      type: "speech",
+      request,
+      response: {
+        content: draft,
+        raw: result.content,
+        rawResponse: JSON.stringify(result.raw, null, 2),
+        finishReason: result.raw.choices?.[0]?.finish_reason,
+        duration: Date.now() - startTime,
+      },
+      error: parseError,
+    });
+    logged = true;
+    return draft;
+  } catch (error) {
+    if (!logged) {
+      await aiLogger.log({
+        type: "speech",
+        request,
+        response: { content: "", duration: Date.now() - startTime },
+        error: String(error),
+      });
+    }
     throw error;
   }
 }

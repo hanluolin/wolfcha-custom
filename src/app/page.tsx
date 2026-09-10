@@ -152,6 +152,7 @@ export default function Home() {
     currentDialogue,
     inputText,
     setInputText,
+    isAiAssistLoading,
     showTable,
     humanPlayer,
     isNight,
@@ -161,6 +162,7 @@ export default function Home() {
     continueAfterRoleReveal,
     restartGame,
     handleHumanSpeech,
+    handleAiAssist,
     handleFinishSpeaking,
     handleBadgeSignup,
     handleHumanVote,
@@ -1589,6 +1591,8 @@ export default function Home() {
                       inputText={inputText}
                       onInputChange={setInputText}
                       onSendMessage={handleHumanSpeech}
+                      onAiAssist={handleAiAssist}
+                      isAiAssistLoading={isAiAssistLoading}
                       onFinishSpeaking={handleFinishSpeaking}
                       selectedSeat={selectedSeat}
                       isWaitingForAI={isWaitingForAI}

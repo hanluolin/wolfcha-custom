@@ -11,6 +11,7 @@
 > - **Everything is configured in the UI** — open the app, click **Configure LLM gateway**, and enter your own OpenAI-compatible API URL, key, and model name. No code edits, no rebuild, no `.env`.
 > - **Your key never leaves your browser** — settings are stored in your own `localStorage`, and requests go **straight from your browser** to the gateway you configured. Nothing passes through the deployer's server, so there is no key collection or leak risk.
 > - **Deep-thinking mode supported** — toggle reasoning on or off and pick a thinking depth (minimal / low / medium / high) for models that accept `reasoning_effort`.
+> - **"AI help" when it is your turn** — click **AI help** at the bottom-left of the input box and the model drafts a speech from your own seat: your role, your private information (a Seer's checks, a Witch's potions), the living seats, and today's table talk. It only fills the input box and never sends, so you can edit it first. Write a short hint (for example "don't claim Seer yet") to steer the draft.
 
 # Wolfcha
 

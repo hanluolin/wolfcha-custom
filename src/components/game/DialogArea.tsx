@@ -4,7 +4,7 @@ import React, { useRef, useEffect, useMemo, useState, useCallback } from "react"
 import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ChatCircleDots, PaperPlaneTilt, CheckCircle, MoonStars, Eye, Drop, Crosshair, Skull, X, ArrowClockwise, CaretRight, UserCircle, Prohibit, ClipboardText } from "@phosphor-icons/react";
+import { ChatCircleDots, PaperPlaneTilt, CheckCircle, MoonStars, Eye, Drop, Crosshair, Skull, X, ArrowClockwise, CaretRight, UserCircle, Prohibit, ClipboardText, Sparkle } from "@phosphor-icons/react";
 import { WerewolfIcon, VillagerIcon, VoteIcon } from "@/components/icons/FlatIcons";
 import { VoteResultCard } from "./VoteResultCard";
 import { VotingProgress } from "./VotingProgress";
@@ -267,6 +267,9 @@ interface DialogAreaProps {
   onInputChange?: (text: string) => void;
   onSendMessage?: () => void;
   onFinishSpeaking?: () => void;
+  /** 「AI 助我」：生成草稿填进输入框（不发送），由玩家自行修改后发送 */
+  onAiAssist?: () => void;
+  isAiAssistLoading?: boolean;
   // 操作相关 (从 BottomActionPanel 合并)
   selectedSeat?: number | null;
   isWaitingForAI?: boolean;
@@ -382,6 +385,8 @@ export function DialogArea({
   onInputChange,
   onSendMessage,
   onFinishSpeaking,
+  onAiAssist,
+  isAiAssistLoading = false,
   // 操作相关
   selectedSeat = null,
   isWaitingForAI = false,
@@ -1590,6 +1595,18 @@ export function DialogArea({
                       players={gameState.players.filter((p) => p.alive)}
                     />
                     
+                    {/* AI助我 - 单独放在输入框左下角 */}
+                    <button
+                      onClick={onAiAssist}
+                      disabled={isAiAssistLoading}
+                      className="absolute bottom-3 left-4 h-8 px-3 rounded text-xs font-medium border border-[var(--glass-border)] bg-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--color-gold)]/10 disabled:opacity-60 disabled:cursor-wait transition-all flex items-center gap-1.5 cursor-pointer"
+                      title={t("dialog.input.aiAssistHint")}
+                      type="button"
+                    >
+                      <Sparkle size={14} weight="fill" className={isAiAssistLoading ? "animate-pulse" : undefined} />
+                      {isAiAssistLoading ? t("dialog.input.aiAssistLoading") : t("dialog.input.aiAssist")}
+                    </button>
+
                     {/* 底部按钮栏 - 在输入框内部右下角 */}
                     <div className="absolute bottom-3 right-3 flex items-center gap-2">
                       <button

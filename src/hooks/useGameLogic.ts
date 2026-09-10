@@ -33,13 +33,14 @@ import {
   killPlayer,
   generateDailySummary,
   getRandomHumanSeat,
+  generateHumanSpeechSuggestion,
   generateWhiteWolfKingBoomDecision,
 } from "@/lib/game-master";
 import { buildGenshinModelRefs, generateCharacters, generateGenshinModeCharacters, sampleModelRefs, type GeneratedCharacter } from "@/lib/character-generator";
 import { getSystemMessages, getUiText } from "@/lib/game-texts";
 import { runAiTaskWithRetry, cancelPendingAiRetry } from "@/lib/ai-retry";
 import { getRandomScenario } from "@/lib/scenarios";
-import { DELAY_CONFIG, getRoleName } from "@/lib/game-constants";
+import { DELAY_CONFIG, PHASE_CATEGORIES, getRoleName } from "@/lib/game-constants";
 import { generateUUID } from "@/lib/utils";
 import {
   AsyncFlowController,
@@ -97,8 +98,29 @@ export function useGameLogic() {
   const [gameState, setGameState] = useAtom(gameStateAtom);
   const [isLoading, setIsLoading] = useState(false);
   const [inputText, setInputText] = useState("");
+  // 「AI 助我」：只把草稿写进输入框，绝不代替玩家发送
+  const [isAiAssistLoading, setIsAiAssistLoading] = useState(false);
+  const aiAssistRequestRef = useRef<{ id: string; controller: AbortController } | null>(null);
   const [showTable, setShowTable] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
+
+  /** 取消进行中的「AI 助我」请求（重开/换轮时调用） */
+  const cancelAiAssist = useCallback(() => {
+    aiAssistRequestRef.current?.controller.abort();
+    aiAssistRequestRef.current = null;
+    setIsAiAssistLoading(false);
+  }, []);
+
+  // 卸载时断开在途请求，避免组件已卸载还在写状态
+  useEffect(() => () => {
+    aiAssistRequestRef.current?.controller.abort();
+    aiAssistRequestRef.current = null;
+  }, []);
+
+  // 换轮/换阶段后本轮草稿已失效：作废在途请求，避免 loading 态残留到下一次发言
+  useEffect(() => {
+    cancelAiAssist();
+  }, [cancelAiAssist, gameState.currentSpeakerSeat, gameState.phase]);
 
   // 角色批量生成失败 → 挂起等待用户在 UI 上确认是否重试该批
   const [characterRetry, setCharacterRetry] = useState<{
@@ -1794,6 +1816,7 @@ export function useGameLogic() {
   const restartGame = useCallback(() => {
     flowController.current.interrupt();
     cancelPendingAiRetry();
+    cancelAiAssist();
     void gameSessionTracker.abandon().catch((error) => {
       console.error("[game-session] Failed to abandon session:", error);
     });
@@ -1817,7 +1840,7 @@ export function useGameLogic() {
       window.clearTimeout(showTableTimeoutRef.current);
       showTableTimeoutRef.current = null;
     }
-  }, [clearCancellableTimeouts, resetDialogueState, setGameState]);
+  }, [cancelAiAssist, clearCancellableTimeouts, resetDialogueState, setGameState]);
 
   /** 人类发言 */
   const handleHumanSpeech = useCallback(async () => {
@@ -1829,10 +1852,60 @@ export function useGameLogic() {
 
     const speech = inputText.trim();
     setInputText("");
+    // 玩家自己发出去了：作废可能还在路上的 AI 草稿，避免它再盖回输入框
+    aiAssistRequestRef.current?.controller.abort();
+    aiAssistRequestRef.current = null;
+    setIsAiAssistLoading(false);
 
     const currentState = addPlayerMessage(gameStateRef.current, humanPlayer.playerId, speech);
     setGameState(currentState);
   }, [inputText, humanPlayer, setGameState]);
+
+  /**
+   * 「AI 助我」：让 AI 起草一段属于这名玩家的公开发言。
+   *
+   * 结果只写进输入框，不发送——玩家可以改完再点发送。
+   * 生成期间如果换轮/换阶段/重开，旧请求作废，不会把过期草稿盖到新输入框上。
+   */
+  const handleAiAssist = useCallback(async () => {
+    if (!humanPlayer) return;
+    if (aiAssistRequestRef.current) return;
+
+    const startState = gameStateRef.current;
+    const isMyTurn =
+      PHASE_CATEGORIES.SPEECH_PHASES.includes(startState.phase as typeof PHASE_CATEGORIES.SPEECH_PHASES[number]) &&
+      startState.currentSpeakerSeat === humanPlayer.seat;
+    if (!isMyTurn) return;
+
+    const controller = new AbortController();
+    const id = generateUUID();
+    aiAssistRequestRef.current = { id, controller };
+    setIsAiAssistLoading(true);
+
+    try {
+      const draft = await generateHumanSpeechSuggestion(startState, humanPlayer, {
+        signal: controller.signal,
+        hint: inputText,
+      });
+      const isCurrent = aiAssistRequestRef.current?.id === id && !controller.signal.aborted;
+      const liveState = gameStateRef.current;
+      const stillMyTurn =
+        liveState.phase === startState.phase && liveState.currentSpeakerSeat === startState.currentSpeakerSeat;
+      if (!isCurrent || !stillMyTurn) return;
+      setInputText(draft);
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      console.error("[ai-assist] 生成发言草稿失败:", error);
+      const message = error instanceof Error ? error.message : "";
+      // 未配置网关属于可操作提示，直接透出原文；其余统一给一句可重试的提示。
+      toast.error(message.includes("尚未配置") ? message : t("dialog.input.aiAssistFailed"));
+    } finally {
+      if (aiAssistRequestRef.current?.id === id) {
+        aiAssistRequestRef.current = null;
+        setIsAiAssistLoading(false);
+      }
+    }
+  }, [humanPlayer, inputText, t]);
 
   /** 人类结束发言 */
   const handleFinishSpeaking = useCallback(async () => {
@@ -2320,6 +2393,7 @@ export function useGameLogic() {
     currentDialogue,
     inputText,
     setInputText,
+    isAiAssistLoading,
     showTable,
     logRef,
     humanPlayer,
@@ -2332,6 +2406,7 @@ export function useGameLogic() {
     continueAfterRoleReveal,
     restartGame,
     handleHumanSpeech,
+    handleAiAssist,
     handleFinishSpeaking,
     handleBadgeSignup: badgePhase.handleBadgeSignup,
     handleHumanVote,

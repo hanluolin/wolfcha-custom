@@ -1000,6 +1000,9 @@
     "listSeparator": ", "
   },
   "prompts": {
+    "aiAssist": {
+      "hint": "【Player's own direction】\nThe text below was written by the human player as a direction for themselves. It is not another player's speech and not public information in this game. Treat it as a binding constraint on this speech:\n- If it is an explicit instruction (for example: do not reveal a role, you must say something first, name a suspect or a player to protect), you must follow it strictly.\n- If it is loose notes or bullet points, expand them into a complete public speech.\nPlayer's direction: {hint}"
+    },
     "daySpeech": {
       "speakOrder": {
         "status": "All participants in this speech round ({totalSpeakers} total, including both spoken and not-yet-spoken seats): {orderList}\nCurrent speaker: {currentSeat} (position {speakOrder}/{totalSpeakers})\nSeats with a public speech record: {spokenList}\nTurn already passed without a public speech record: {passedList}\nNot reached yet and without a public speech record: {unspokenList}\nThese are objective records for the current round only. The current speaker is not counted as having spoken until this speech is complete."
@@ -1324,10 +1327,14 @@
       "select": "Select"
     },
     "input": {
-      "lastWordsPlaceholder": "Any last words?",
-      "defaultPlaceholder": "What do you think?",
+      "lastWordsPlaceholder": "Any last words? (Tap AI help to draft, or write a few words first to steer it)",
+      "defaultPlaceholder": "What do you think? (Tap AI help to draft, or write a few words first to steer it)",
       "send": "Send",
-      "finishSpeech": "End speech"
+      "finishSpeech": "End speech",
+      "aiAssist": "AI help",
+      "aiAssistHint": "Let AI draft a speech (write a few words first to steer it) — it only fills the input box, edit it before sending",
+      "aiAssistLoading": "Drafting…",
+      "aiAssistFailed": "AI failed to draft a speech. Please try again."
     }
   },
   "tutorialOverlay": {

@@ -1000,6 +1000,9 @@
     "listSeparator": "、"
   },
   "prompts": {
+    "aiAssist": {
+      "hint": "【玩家本人的临场指示】\n下面这段是玩家本人写给自己的方向，不是其他玩家的发言，也不属于本局已公开的事实。请把它当作本次发言的硬性约束：\n- 如果是明确要求（例如不要暴露某个身份、必须先说某件事、指定怀疑或保护的对象），必须严格遵守，不得违背；\n- 如果是零散的想法或要点，就把它扩写成一段完整的公开发言。\n玩家指示：{hint}"
+    },
     "daySpeech": {
       "speakOrder": {
         "status": "本轮全部发言参与者（共{totalSpeakers}人，含已发言与尚未发言）：{orderList}\n当前轮到：{currentSeat}（第{speakOrder}/{totalSpeakers}位）\n已有公开发言记录：{spokenList}\n顺序已过但没有公开发言记录：{passedList}\n尚未轮到且没有公开发言记录：{unspokenList}\n以上仅陈述当前轮次的客观记录；当前发言者在本次发言完成前不计入‘已有公开发言记录’。"
@@ -1324,10 +1327,14 @@
       "select": "选择"
     },
     "input": {
-      "lastWordsPlaceholder": "有什么想说的？",
-      "defaultPlaceholder": "你怎么看？",
+      "lastWordsPlaceholder": "有什么想说的？（可点「AI助我」生成；也可先写几个字引导方向再点）",
+      "defaultPlaceholder": "你怎么看？（可点「AI助我」生成；也可先写几个字引导方向再点）",
       "send": "发送",
-      "finishSpeech": "结束发言"
+      "finishSpeech": "结束发言",
+      "aiAssist": "AI助我",
+      "aiAssistHint": "让 AI 起草一段发言（先在输入框中写几个字可以引导方向），只填进输入框，你可以改完再发送",
+      "aiAssistLoading": "构思中…",
+      "aiAssistFailed": "AI 起草发言失败，请重试"
     }
   },
   "tutorialOverlay": {
