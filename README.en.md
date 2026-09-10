@@ -124,6 +124,14 @@ The APK is written to `android/app/build/outputs/apk/debug/app-debug.apk`. Point
 `JAVA_HOME` (JDK 21+) and `ANDROID_HOME` at your own installations if they differ,
 or run `npx cap open android` and build from Android Studio.
 
+## 🔗 Derivative Work
+
+This project is a **derivative work** built on top of [oil-oil/wolfcha](https://github.com/oil-oil/wolfcha).
+
+- Upstream repository: <https://github.com/oil-oil/wolfcha>
+- Copyright of the original work belongs to the upstream authors.
+- Changes made in this repository are distributed under the same license as the upstream project.
+
 ## 📄 License
 
-MIT
+Apache License 2.0 — the same license as the upstream project [oil-oil/wolfcha](https://github.com/oil-oil/wolfcha). See [LICENSE](./LICENSE).

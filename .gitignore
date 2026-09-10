@@ -15,6 +15,7 @@
 
 # next.js
 /.next/
+/.next.old_*/
 /out/
 
 # production
@@ -44,6 +45,7 @@ next-env.d.ts
 ai-logs.json
 ai-logs.jsonl
 /dry-runs/
+android/
 
 # windsurf rules (local only)
 .windsurf/rules/renewlog.md

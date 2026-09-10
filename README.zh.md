@@ -112,6 +112,16 @@ MiniMax 语音也由浏览器直连。对局存档、自定义角色与设置均
 - 和朋友一起加入 AI 圆桌
 - 为表现出色的 AI 人格点赞
 
+## 二次开发说明
+
+本项目是基于 [oil-oil/wolfcha](https://github.com/oil-oil/wolfcha) 的**二次开发**版本，在上游代码基础上改造而来。
+
+- 上游仓库：<https://github.com/oil-oil/wolfcha>
+- 原作品的版权归上游作者所有
+- 本仓库所做的修改（如纯前端化改造、移动端体验修复等）与上游采用同一许可证分发
+
 ## License
 
-[MIT](./LICENSE)
+[Apache License 2.0](./LICENSE)
+
+上游项目 [oil-oil/wolfcha](https://github.com/oil-oil/wolfcha) 采用 Apache License 2.0，本仓库作为其二次开发版本沿用同一许可证，并保留原始版权声明与许可证全文。

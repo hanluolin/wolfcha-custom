@@ -115,6 +115,16 @@ are stored locally on the device.
 - Multiplayer with friends and AI players
 - Community ratings for standout AI personalities
 
+## Derivative work
+
+This project is a **derivative work** built on top of [oil-oil/wolfcha](https://github.com/oil-oil/wolfcha).
+
+- Upstream repository: <https://github.com/oil-oil/wolfcha>
+- Copyright of the original work belongs to the upstream authors.
+- Changes made in this repository (for example the pure front-end rewrite and the mobile play fixes) are distributed under the same license as the upstream project.
+
 ## License
 
-[MIT](./LICENSE)
+[Apache License 2.0](./LICENSE)
+
+The upstream project [oil-oil/wolfcha](https://github.com/oil-oil/wolfcha) is licensed under the Apache License 2.0, and this repository — a derivative work based on it — is distributed under the same license. The original copyright notices and license text are retained.
