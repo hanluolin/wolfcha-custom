@@ -273,8 +273,10 @@ export function MentionInput({
     content: value,
     editorProps: {
       attributes: {
+        // max-height 必须配合 overflow-y-auto，否则长文本会直接画到输入框外（压住发送按钮）
+        // 移动端可视高度更紧张，所以上限比桌面小一些
         class:
-          "wc-input-field w-full min-h-[44px] max-h-[120px] text-base focus:outline-none transition-all cursor-text",
+          "wc-input-field w-full min-h-[44px] max-h-[96px] sm:max-h-[120px] text-base leading-6 break-words overflow-y-auto overscroll-contain focus:outline-none transition-all cursor-text",
       },
     },
     onUpdate: ({ editor }) => {

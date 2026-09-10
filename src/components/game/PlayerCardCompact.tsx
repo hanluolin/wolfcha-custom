@@ -135,7 +135,9 @@ export function PlayerCardCompact({
       });
   const avatarClassName = cn(
     "w-full h-full transition-transform duration-500",
-    isModelAvatar ? "object-contain p-2 bg-[var(--bg-secondary)]" : "object-cover group-hover:scale-110",
+    isModelAvatar ? "object-contain p-2 bg-[var(--bg-secondary)]" : "object-cover",
+    // 移动端卡片在横向滚动容器里，触摸产生的 :hover 会让头像缩放并持续重绘，去掉
+    !isModelAvatar && variant !== "mobile" && "group-hover:scale-110",
     isSpeaking && "border-[var(--color-gold)]"
   );
 
@@ -178,7 +180,10 @@ export function PlayerCardCompact({
         "wc-player-card relative group transition-all duration-300",
         variant === "mobile" && "wc-player-card--mobile",
         !isReady && "wc-player-card--loading opacity-80",
-        isReady && "bg-[var(--bg-card)]/80 backdrop-blur-sm",
+        // backdrop-filter 在横向滚动容器内会被 Android WebView 每帧重新采样背板，
+        // 卡片滑动时出现闪烁；移动端改用更高不透明度底色来保证可读性。
+        isReady && "bg-[var(--bg-card)]/80",
+        isReady && variant !== "mobile" && "backdrop-blur-sm",
         isDead && "wc-player-card--dead grayscale-[0.8]",
         isSpeaking && "wc-player-card--speaking ring-1 ring-[var(--color-gold)] shadow-[0_0_15px_rgba(184,134,11,0.15)]",
         isMe && "wc-player-card--me",
@@ -253,7 +258,12 @@ export function PlayerCardCompact({
         </AnimatePresence>
 
         {isDead && isReady && (
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-[1px] flex items-center justify-center z-10">
+          <div
+            className={cn(
+              "absolute inset-0 flex items-center justify-center z-10",
+              variant === "mobile" ? "bg-black/70" : "bg-black/60 backdrop-blur-[1px]"
+            )}
+          >
             <span className="text-[10px] font-bold text-white tracking-widest border border-white/30 px-2 py-0.5 rounded-sm">RIP</span>
           </div>
         )}

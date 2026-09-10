@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { useState, useMemo, useEffect, useLayoutEffect, useCallback, useRef } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useTranslations } from "next-intl";
 import { useAtom } from "jotai";
@@ -1987,6 +1987,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 // ============ 悬浮入口按钮（可拖动） ============
 const DEV_BUTTON_POS_KEY = "wolfcha_devtools_pos";
 const DEV_BUTTON_PAD = 8;
+const DEV_BUTTON_SIZE = 48; // w-12
 
 type DevButtonPos = { x: number; y: number };
 
@@ -2004,16 +2005,54 @@ function readDevButtonPos(): DevButtonPos | null {
   }
 }
 
+function writeDevButtonPos(pos: DevButtonPos | null) {
+  if (typeof window === "undefined") return;
+  try {
+    if (pos) window.localStorage.setItem(DEV_BUTTON_POS_KEY, JSON.stringify(pos));
+    else window.localStorage.removeItem(DEV_BUTTON_POS_KEY);
+  } catch {
+    // ignore storage errors
+  }
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
+
+/**
+ * 把保存的坐标夹回当前视口的可见范围。
+ * 历史坐标可能来自更大的屏幕/横屏/带地址栏的窗口，直接套用到移动端会让按钮
+ * 落在屏幕外，表现为「按钮不见了」。移动端没有鼠标，一旦移出可视区就无法拖回来。
+ */
+function clampDevButtonPos(pos: DevButtonPos): DevButtonPos {
+  if (typeof window === "undefined") return pos;
+  const maxX = Math.max(DEV_BUTTON_PAD, window.innerWidth - DEV_BUTTON_SIZE - DEV_BUTTON_PAD);
+  const maxY = Math.max(DEV_BUTTON_PAD, window.innerHeight - DEV_BUTTON_SIZE - DEV_BUTTON_PAD);
+  return {
+    x: clamp(pos.x, DEV_BUTTON_PAD, maxX),
+    y: clamp(pos.y, DEV_BUTTON_PAD, maxY),
+  };
+}
+
+function isSamePos(a: DevButtonPos, b: DevButtonPos): boolean {
+  return a.x === b.x && a.y === b.y;
+}
+
+/**
+ * 历史坐标只能在浏览器里读，服务端渲染拿不到；若把读取写进 useState 初始化，
+ * 服务端/客户端首帧会产出不同的 style，触发 hydration 不一致（React 会保留服务端属性，
+ * 于是「看到的按钮位置」和「React 记录的位置」长期对不上）。
+ * 因此首帧一律用默认位置，挂载后再同步存档坐标。
+ */
+const useIsomorphicLayoutEffect =
+  typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 export function DevModeButton({ onClick }: { onClick: () => void }) {
   const t = useTranslations();
   // 所有环境（dev / 生产静态包 / APK）都显示；构建时设 NEXT_PUBLIC_SHOW_DEVTOOLS=false 可关闭。
   const showDevTools =
     (process.env.NEXT_PUBLIC_SHOW_DEVTOOLS ?? "true") === "true";
-  const [pos, setPos] = useState<DevButtonPos | null>(() => readDevButtonPos());
+  const [pos, setPos] = useState<DevButtonPos | null>(null);
   const dragRef = useRef<{
     startX: number;
     startY: number;
@@ -2023,16 +2062,38 @@ export function DevModeButton({ onClick }: { onClick: () => void }) {
   } | null>(null);
   const [dragging, setDragging] = useState(false);
 
-  if (!showDevTools) return null;
+  // 挂载后同步历史坐标，并夹回当前视口的可见范围。
+  // 历史坐标可能来自更大的屏幕 / 横屏 / 带地址栏的窗口，直接套用会让按钮落在屏幕外，
+  // 移动端没有鼠标，一旦移出可视区就再也拖不回来（表现为「按钮不见了」）。
+  useIsomorphicLayoutEffect(() => {
+    const saved = readDevButtonPos();
+    if (!saved) return;
+    const clamped = clampDevButtonPos(saved);
+    if (!isSamePos(clamped, saved)) writeDevButtonPos(clamped);
+    setPos(clamped);
+  }, []);
 
-  const persistPos = (next: DevButtonPos | null) => {
-    try {
-      if (next) window.localStorage.setItem(DEV_BUTTON_POS_KEY, JSON.stringify(next));
-      else window.localStorage.removeItem(DEV_BUTTON_POS_KEY);
-    } catch {
-      // ignore storage errors
-    }
-  };
+  // 旋转屏幕、软键盘收起、地址栏伸缩都会改变视口，重新夹一次保证按钮始终可见。
+  useEffect(() => {
+    const reclamp = () => {
+      setPos((prev) => {
+        if (!prev) return prev;
+        const next = clampDevButtonPos(prev);
+        if (isSamePos(next, prev)) return prev;
+        writeDevButtonPos(next);
+        return next;
+      });
+    };
+
+    window.addEventListener("resize", reclamp);
+    window.addEventListener("orientationchange", reclamp);
+    return () => {
+      window.removeEventListener("resize", reclamp);
+      window.removeEventListener("orientationchange", reclamp);
+    };
+  }, []);
+
+  if (!showDevTools) return null;
 
   const onPointerDown = (e: ReactPointerEvent<HTMLButtonElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -2056,19 +2117,16 @@ export function DevModeButton({ onClick }: { onClick: () => void }) {
       setDragging(true);
     }
     if (!drag.moved) return;
-    const size = 48; // w-12
-    const maxX = window.innerWidth - size - DEV_BUTTON_PAD;
-    const maxY = window.innerHeight - size - DEV_BUTTON_PAD;
     const next: DevButtonPos = {
-      x: clamp(drag.baseX + dx, DEV_BUTTON_PAD, maxX),
-      y: clamp(drag.baseY + dy, DEV_BUTTON_PAD, maxY),
+      x: drag.baseX + dx,
+      y: drag.baseY + dy,
     };
-    setPos(next);
+    setPos(clampDevButtonPos(next));
   };
 
   const onPointerUp = () => {
     if (dragRef.current) {
-      if (dragRef.current.moved && pos) persistPos(pos);
+      if (dragRef.current.moved && pos) writeDevButtonPos(pos);
       // 保留 dragRef 到 click 判定后清理
     }
     setDragging(false);
@@ -2101,7 +2159,12 @@ export function DevModeButton({ onClick }: { onClick: () => void }) {
       style={
         pos
           ? { position: "fixed", left: pos.x, top: pos.y }
-          : { position: "fixed", right: DEV_BUTTON_PAD, bottom: DEV_BUTTON_PAD }
+          : {
+              // 移动端留出安全区（iPhone home indicator / Android 手势条），否则默认位置会被压住
+              position: "fixed",
+              right: `calc(${DEV_BUTTON_PAD}px + env(safe-area-inset-right, 0px))`,
+              bottom: `calc(${DEV_BUTTON_PAD}px + env(safe-area-inset-bottom, 0px))`,
+            }
       }
       title={`${t("devConsole.devMode")}（可拖动）`}
       aria-label={t("devConsole.devMode")}
